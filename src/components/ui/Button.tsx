@@ -12,8 +12,9 @@ const variantClasses: Record<ButtonVariant, string> = {
   primary:
     "bg-brand-orange text-brand-ink shadow-action hover:bg-orange-400 focus-visible:outline-brand-orange",
   secondary:
-    "border border-brand-line bg-white/8 text-white hover:border-brand-orange hover:text-brand-orange focus-visible:outline-brand-orange",
-  ghost: "text-brand-field hover:bg-white/8 focus-visible:outline-brand-orange",
+    "border border-neutral-200 bg-white text-brand-ink shadow-sm hover:border-brand-orange hover:text-brand-orange focus-visible:outline-brand-orange dark:border-brand-line dark:bg-white/[0.08] dark:text-white",
+  ghost:
+    "text-brand-ink hover:bg-neutral-100 focus-visible:outline-brand-orange dark:text-brand-field dark:hover:bg-white/[0.08]",
 };
 
 function Button({

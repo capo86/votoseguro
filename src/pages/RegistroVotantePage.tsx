@@ -1,17 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  AlertCircle,
-  CheckCircle2,
-  ClipboardCheck,
-  Fingerprint,
-  Save,
-  ShieldCheck,
-  UserRound,
-} from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, CheckCircle2, Save, UserRound } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import logoUrl from "../../logo.jpg";
 import CandidatoSelect from "../components/form/CandidatoSelect";
 import CedulaLookupField from "../components/form/CedulaLookupField";
 import LocationPickerMap from "../components/form/LocationPickerMap";
@@ -33,7 +24,7 @@ const candidatos: Candidato[] = [
   {
     id: "candidato-ppc-2",
     nombre: "Equipo Territorial PPC",
-    cargo: "Concejalía",
+    cargo: "Concejalia",
     activo: true,
   },
 ];
@@ -97,14 +88,7 @@ function RegistroVotantePage() {
     local: watch("local"),
     zona: watch("zona"),
   };
-  const nombreApellido = watch("nombreApellido");
-  const candidatoId = watch("candidatoId");
   const ubicacion = watch("ubicacion");
-
-  const selectedCandidato = useMemo(
-    () => candidatos.find((candidato) => candidato.id === candidatoId),
-    [candidatoId],
-  );
 
   useEffect(() => {
     if (!padronLookup.data) {
@@ -134,176 +118,113 @@ function RegistroVotantePage() {
     setSaveStatus("idle");
   };
 
+  const handleCedulaChange = () => {
+    setSaveStatus("idle");
+    padronLookup.reset();
+
+    if (Object.values(padronValues).every(Boolean)) {
+      setValue("departamento", emptyPadron.departamento, { shouldValidate: false });
+      setValue("distrito", emptyPadron.distrito, { shouldValidate: false });
+      setValue("zona", emptyPadron.zona, { shouldValidate: false });
+      setValue("local", emptyPadron.local, { shouldValidate: false });
+    }
+  };
+
   const onSubmit = async (values: RegistroVotanteFormValues) => {
     await new Promise((resolve) => window.setTimeout(resolve, 550));
     console.info("Registro local VotoSeguro", values);
     setSaveStatus("saved");
   };
 
-  const hasPadron = Object.values(padronValues).every(Boolean);
-
   return (
-    <main className="voto-page min-h-screen overflow-hidden bg-brand-ink text-white">
-      <div className="voto-sunburst" aria-hidden="true" />
-      <div className="relative mx-auto grid min-h-screen w-full max-w-7xl gap-6 px-4 py-4 sm:px-6 lg:grid-cols-[0.85fr_1.15fr] lg:px-8 lg:py-7">
-        <aside className="order-2 flex flex-col justify-between rounded-panel border border-brand-line bg-brand-coal/80 p-5 shadow-panel backdrop-blur lg:order-1 lg:min-h-[calc(100vh-3.5rem)] lg:p-7">
-          <div className="space-y-8">
-            <div className="flex items-center gap-4">
-              <img
-                alt="PPC"
-                className="h-16 w-16 rounded-panel bg-white object-cover ring-2 ring-brand-orange"
-                src={logoUrl}
-              />
-              <div>
-                <p className="font-body text-xs font-black uppercase text-brand-orange">
-                  VotoSeguro
-                </p>
-                <h1 className="font-display text-3xl text-white sm:text-4xl">Registro PPC</h1>
-              </div>
-            </div>
+    <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.88] p-4 shadow-panel backdrop-blur sm:p-5 lg:p-7 dark:border-brand-line dark:bg-neutral-900/[0.92]">
+      <form className="space-y-5 sm:space-y-6" onSubmit={handleSubmit(onSubmit)}>
+        <div className="grid gap-3 border-b border-neutral-200 pb-5 sm:grid-cols-[1fr_auto] sm:items-start dark:border-brand-line">
+          <div>
+            <p className="font-body text-xs font-black uppercase text-brand-orange">
+              Carga de votante
+            </p>
+            <h1 className="mt-1 font-display text-3xl leading-none text-brand-ink sm:text-4xl dark:text-white">
+              Padron electoral
+            </h1>
+            <p className="mt-2 max-w-xl font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
+              Consulta la cedula, valida datos de padron y completa contacto territorial.
+            </p>
+          </div>
+          <div className="w-fit rounded-panel border border-neutral-200 bg-neutral-50 px-3 py-2 font-body text-sm font-black text-neutral-700 dark:border-brand-line dark:bg-black/20 dark:text-orange-50/80">
+            Fase 1
+          </div>
+        </div>
 
-            <div className="voto-meter">
-              <div className="voto-meter-ring">
-                <ShieldCheck aria-hidden="true" size={42} strokeWidth={2.4} />
-              </div>
-              <div>
-                <p className="font-body text-xs font-black uppercase text-orange-100/70">
-                  Control territorial
-                </p>
-                <p className="mt-2 max-w-sm font-body text-xl font-black leading-tight text-white">
-                  Cedula, padron, telefono, ubicacion y candidato en una sola carga.
-                </p>
-              </div>
-            </div>
+        <CedulaLookupField
+          error={errors.cedula?.message}
+          onLookup={handleLookup}
+          register={register("cedula", { onChange: handleCedulaChange })}
+          status={padronLookup.status}
+        />
 
-            <div className="grid gap-3">
-              <div className="status-row">
-                <Fingerprint aria-hidden="true" size={20} strokeWidth={2.6} />
-                <span>{padronLookup.status === "found" ? "Padron verificado" : "Padron pendiente"}</span>
-              </div>
-              <div className="status-row">
-                <UserRound aria-hidden="true" size={20} strokeWidth={2.6} />
-                <span>{nombreApellido || "Votante sin identificar"}</span>
-              </div>
-              <div className="status-row">
-                <ClipboardCheck aria-hidden="true" size={20} strokeWidth={2.6} />
-                <span>{selectedCandidato?.nombre ?? "Preferencia pendiente"}</span>
-              </div>
-            </div>
+        {padronLookup.error ? (
+          <div className="flex items-center gap-2 rounded-panel border border-red-300/50 bg-red-50 px-4 py-3 font-body text-sm font-bold text-red-800 dark:border-red-300/30 dark:bg-red-500/10 dark:text-red-100">
+            <AlertCircle aria-hidden="true" size={18} strokeWidth={2.6} />
+            {padronLookup.error}
+          </div>
+        ) : null}
+
+        <TextInput
+          autoComplete="name"
+          error={errors.nombreApellido?.message}
+          icon={<UserRound aria-hidden="true" size={19} strokeWidth={2.6} />}
+          id="nombreApellido"
+          label="Nombre y apellido"
+          placeholder="Se completa desde el padron"
+          {...register("nombreApellido", { onChange: () => setSaveStatus("idle") })}
+        />
+
+        <PadronReadonlyFields {...padronValues} />
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <PhoneField
+            error={errors.telefono?.message}
+            register={register("telefono", { onChange: () => setSaveStatus("idle") })}
+          />
+          <CandidatoSelect
+            candidatos={candidatos}
+            error={errors.candidatoId?.message}
+            register={register("candidatoId", { onChange: () => setSaveStatus("idle") })}
+          />
+        </div>
+
+        <LocationPickerMap
+          error={errors.ubicacion?.message}
+          onChange={handleLocationChange}
+          value={ubicacion}
+        />
+
+        <div className="grid gap-3 border-t border-neutral-200 pt-5 sm:grid-cols-[1fr_auto] sm:items-center dark:border-brand-line">
+          <div className="min-h-6 font-body text-sm font-semibold">
+            {saveStatus === "saved" ? (
+              <span className="inline-flex items-center gap-2 text-emerald-700 dark:text-emerald-200">
+                <CheckCircle2 aria-hidden="true" size={18} strokeWidth={2.6} />
+                Registro preparado en modo local.
+              </span>
+            ) : (
+              <span className="text-neutral-600 dark:text-orange-50/[0.65]">
+                Sesion autenticada lista para conectar inserts a Supabase.
+              </span>
+            )}
           </div>
 
-          <div className="mt-8 grid grid-cols-3 gap-2 border-t border-brand-line pt-5">
-            <div>
-              <p className="metric-label">Cedula</p>
-              <p className="metric-value">{cedula || "—"}</p>
-            </div>
-            <div>
-              <p className="metric-label">Distrito</p>
-              <p className="metric-value">{padronValues.distrito || "—"}</p>
-            </div>
-            <div>
-              <p className="metric-label">Mapa</p>
-              <p className="metric-value">{ubicacion ? "OK" : "—"}</p>
-            </div>
-          </div>
-        </aside>
-
-        <section className="order-1 rounded-panel border border-brand-line bg-neutral-900/92 p-4 shadow-panel backdrop-blur lg:order-2 lg:p-7">
-          <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
-            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-brand-line pb-5">
-              <div>
-                <p className="font-body text-xs font-black uppercase text-brand-orange">
-                  Carga de votante
-                </p>
-                <h2 className="mt-1 font-display text-3xl text-white sm:text-4xl">
-                  Padron electoral
-                </h2>
-              </div>
-              <div className="rounded-panel border border-brand-line bg-black/20 px-3 py-2 font-body text-sm font-black text-orange-50/80">
-                Fase 1
-              </div>
-            </div>
-
-            <CedulaLookupField
-              error={errors.cedula?.message}
-              onLookup={handleLookup}
-              register={register("cedula", {
-                onChange: () => {
-                  setSaveStatus("idle");
-                  padronLookup.reset();
-                  if (hasPadron) {
-                    setValue("departamento", emptyPadron.departamento, { shouldValidate: false });
-                    setValue("distrito", emptyPadron.distrito, { shouldValidate: false });
-                    setValue("zona", emptyPadron.zona, { shouldValidate: false });
-                    setValue("local", emptyPadron.local, { shouldValidate: false });
-                  }
-                },
-              })}
-              status={padronLookup.status}
-            />
-
-            {padronLookup.error ? (
-              <div className="flex items-center gap-2 rounded-panel border border-red-300/30 bg-red-500/10 px-4 py-3 font-body text-sm font-bold text-red-100">
-                <AlertCircle aria-hidden="true" size={18} strokeWidth={2.6} />
-                {padronLookup.error}
-              </div>
-            ) : null}
-
-            <TextInput
-              autoComplete="name"
-              error={errors.nombreApellido?.message}
-              icon={<UserRound aria-hidden="true" size={19} strokeWidth={2.6} />}
-              id="nombreApellido"
-              label="Nombre y apellido"
-              placeholder="Se completa desde el padron"
-              {...register("nombreApellido", { onChange: () => setSaveStatus("idle") })}
-            />
-
-            <PadronReadonlyFields {...padronValues} />
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <PhoneField
-                error={errors.telefono?.message}
-                register={register("telefono", { onChange: () => setSaveStatus("idle") })}
-              />
-              <CandidatoSelect
-                candidatos={candidatos}
-                error={errors.candidatoId?.message}
-                register={register("candidatoId", { onChange: () => setSaveStatus("idle") })}
-              />
-            </div>
-
-            <LocationPickerMap
-              error={errors.ubicacion?.message}
-              onChange={handleLocationChange}
-              value={ubicacion}
-            />
-
-            <div className="flex flex-col gap-3 border-t border-brand-line pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-h-6 font-body text-sm font-semibold">
-                {saveStatus === "saved" ? (
-                  <span className="inline-flex items-center gap-2 text-emerald-200">
-                    <CheckCircle2 aria-hidden="true" size={18} strokeWidth={2.6} />
-                    Registro preparado en modo local.
-                  </span>
-                ) : (
-                  <span className="text-orange-50/65">Supabase queda listo para la fase de conexion.</span>
-                )}
-              </div>
-
-              <Button
-                className="sm:min-w-56"
-                icon={<Save aria-hidden="true" size={18} strokeWidth={2.8} />}
-                isLoading={isSubmitting}
-                type="submit"
-              >
-                Guardar registro
-              </Button>
-            </div>
-          </form>
-        </section>
-      </div>
-    </main>
+          <Button
+            className="w-full sm:min-w-56"
+            icon={<Save aria-hidden="true" size={18} strokeWidth={2.8} />}
+            isLoading={isSubmitting}
+            type="submit"
+          >
+            Guardar registro
+          </Button>
+        </div>
+      </form>
+    </section>
   );
 }
 

@@ -12,7 +12,7 @@ function CandidatoSelect({ candidatos, error, register }: CandidatoSelectProps) 
   return (
     <div className="space-y-2">
       <label
-        className="block font-body text-xs font-black uppercase text-orange-100/80"
+        className="block font-body text-xs font-black uppercase text-neutral-600 dark:text-orange-100/80"
         htmlFor="candidatoId"
       >
         Candidato
@@ -26,7 +26,7 @@ function CandidatoSelect({ candidatos, error, register }: CandidatoSelectProps) 
         />
         <select
           aria-invalid={Boolean(error)}
-          className="min-h-12 w-full appearance-none rounded-panel border border-neutral-300 border-l-4 border-l-brand-orange bg-brand-field px-4 py-3 pl-12 font-body text-base font-black text-brand-ink outline-none transition focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20"
+          className="min-h-12 w-full appearance-none rounded-panel border border-neutral-300 border-l-4 border-l-brand-orange bg-white px-4 py-3 pl-12 font-body text-base font-black text-brand-ink outline-none transition focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 dark:bg-brand-field"
           id="candidatoId"
           {...register}
         >
@@ -38,7 +38,9 @@ function CandidatoSelect({ candidatos, error, register }: CandidatoSelectProps) 
           ))}
         </select>
       </div>
-      {error ? <p className="font-body text-sm font-semibold text-red-200">{error}</p> : null}
+      {error ? (
+        <p className="font-body text-sm font-semibold text-red-700 dark:text-red-200">{error}</p>
+      ) : null}
     </div>
   );
 }

@@ -45,7 +45,7 @@ function PadronReadonlyFields({ departamento, distrito, local, zona }: PadronRea
 
         return (
           <label className="block space-y-2" htmlFor={field.key} key={field.key}>
-            <span className="font-body text-xs font-black uppercase text-orange-100/80">
+            <span className="font-body text-xs font-black uppercase text-neutral-600 dark:text-orange-100/80">
               {field.label}
             </span>
             <span className="relative block">
@@ -56,7 +56,7 @@ function PadronReadonlyFields({ departamento, distrito, local, zona }: PadronRea
                 strokeWidth={2.5}
               />
               <input
-                className="min-h-12 w-full cursor-not-allowed rounded-panel border border-neutral-300 border-l-4 border-l-brand-orange bg-neutral-200 px-4 py-3 pl-12 font-body text-base font-black text-neutral-700 outline-none"
+                className="min-h-12 w-full cursor-not-allowed rounded-panel border border-neutral-300 border-l-4 border-l-brand-orange bg-neutral-100 px-4 py-3 pl-12 font-body text-base font-black text-neutral-700 outline-none dark:bg-neutral-200"
                 id={field.key}
                 readOnly
                 value={values[field.key]}

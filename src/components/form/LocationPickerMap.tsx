@@ -100,8 +100,10 @@ function LocationPickerMap({ error, onChange, value }: LocationPickerMapProps) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="font-body text-xs font-black uppercase text-orange-100/80">Ubicacion</p>
-          <p className="font-body text-sm font-semibold text-orange-50/70">
+          <p className="font-body text-xs font-black uppercase text-neutral-600 dark:text-orange-100/80">
+            Ubicacion
+          </p>
+          <p className="font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
             {value ? `${value.lat.toFixed(5)}, ${value.lng.toFixed(5)}` : "Sin coordenadas"}
           </p>
         </div>
@@ -115,7 +117,7 @@ function LocationPickerMap({ error, onChange, value }: LocationPickerMapProps) {
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-panel border border-brand-line bg-brand-coal shadow-panel">
+      <div className="overflow-hidden rounded-panel border border-neutral-200 bg-white shadow-panel dark:border-brand-line dark:bg-brand-coal">
         <MapContainer
           center={position}
           className="h-72 w-full"
@@ -141,13 +143,17 @@ function LocationPickerMap({ error, onChange, value }: LocationPickerMapProps) {
       <div className="flex flex-wrap items-center gap-2 font-body text-sm font-semibold">
         <MapPin aria-hidden="true" className="text-brand-orange" size={17} strokeWidth={2.6} />
         {error ? (
-          <span className="text-red-200">{error}</span>
+          <span className="text-red-700 dark:text-red-200">{error}</span>
         ) : geoStatus === "error" ? (
-          <span className="text-red-200">No se pudo obtener la ubicacion actual.</span>
+          <span className="text-red-700 dark:text-red-200">
+            No se pudo obtener la ubicacion actual.
+          </span>
         ) : value ? (
-          <span className="text-orange-50/70">Punto territorial listo para guardar.</span>
+          <span className="text-neutral-600 dark:text-orange-50/70">
+            Punto territorial listo para guardar.
+          </span>
         ) : (
-          <span className="text-orange-50/70">Ubicacion pendiente.</span>
+          <span className="text-neutral-600 dark:text-orange-50/70">Ubicacion pendiente.</span>
         )}
       </div>
     </div>

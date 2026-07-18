@@ -5,9 +5,25 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  --page-bg: #fffdf8;
+  --page-fg: #151413;
+  --panel-bg: rgba(255, 255, 255, 0.84);
+  --panel-line: #e8dfd4;
+  --soft-line: rgba(21, 20, 19, 0.12);
+  --muted-fg: rgba(21, 20, 19, 0.62);
+  color-scheme: light;
   font-family: "Source Sans 3", system-ui, sans-serif;
-  background: #151413;
+  background: var(--page-bg);
+}
+
+:root.dark {
+  --page-bg: #151413;
+  --page-fg: #fffdf8;
+  --panel-bg: rgba(36, 33, 31, 0.78);
+  --panel-line: #3a342f;
+  --soft-line: rgba(255, 253, 248, 0.1);
+  --muted-fg: rgba(255, 253, 248, 0.62);
+  color-scheme: dark;
 }
 
 * {
@@ -15,9 +31,10 @@
 }
 
 body {
-  margin: 0;
   min-width: 320px;
-  background: #151413;
+  margin: 0;
+  background: var(--page-bg);
+  color: var(--page-fg);
 }
 
 button,
@@ -28,11 +45,21 @@ select {
 
 .voto-page {
   position: relative;
+  overflow-x: clip;
+  background:
+    linear-gradient(90deg, rgba(242, 130, 12, 0.08) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(21, 20, 19, 0.05) 1px, transparent 1px),
+    radial-gradient(circle at 6% 10%, rgba(242, 130, 12, 0.18), transparent 23rem),
+    var(--page-bg);
+  background-size: 46px 46px, 46px 46px, auto, auto;
+}
+
+:root.dark .voto-page {
   background:
     linear-gradient(90deg, rgba(242, 130, 12, 0.08) 1px, transparent 1px),
     linear-gradient(0deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
     radial-gradient(circle at 12% 12%, rgba(242, 130, 12, 0.2), transparent 28rem),
-    #151413;
+    var(--page-bg);
   background-size: 52px 52px, 52px 52px, auto, auto;
 }
 
@@ -41,31 +68,39 @@ select {
   inset: 0;
   pointer-events: none;
   content: "";
-  opacity: 0.22;
+  opacity: 0.18;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+    linear-gradient(var(--soft-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--soft-line) 1px, transparent 1px);
   background-size: 13px 13px;
-  mask-image: linear-gradient(to bottom, black, transparent 70%);
+  mask-image: linear-gradient(to bottom, black, transparent 72%);
 }
 
 .voto-sunburst {
   position: absolute;
-  right: -12rem;
-  top: -14rem;
-  width: 38rem;
-  max-width: 96vw;
+  right: -13rem;
+  top: 2.25rem;
+  width: 30rem;
+  max-width: 94vw;
   aspect-ratio: 1;
   border-radius: 999px;
-  opacity: 0.34;
+  opacity: 0.2;
   background:
-    radial-gradient(circle, transparent 0 35%, #151413 35% 47%, transparent 47%),
+    radial-gradient(circle, transparent 0 35%, var(--page-bg) 35% 47%, transparent 47%),
     repeating-conic-gradient(
       from -8deg,
       rgba(242, 130, 12, 0.92) 0deg 12deg,
       transparent 12deg 20deg
     );
-  filter: drop-shadow(0 36px 70px rgba(242, 130, 12, 0.22));
+  filter: drop-shadow(0 36px 70px rgba(242, 130, 12, 0.2));
+}
+
+:root.dark .voto-sunburst {
+  opacity: 0.34;
+}
+
+.voto-card {
+  animation: panel-in 420ms ease both;
 }
 
 .voto-meter {
@@ -74,34 +109,34 @@ select {
   gap: 1rem;
   align-items: center;
   padding: 1rem;
-  border: 1px solid #3a342f;
+  border: 1px solid var(--panel-line);
   border-radius: 8px;
-  background: linear-gradient(135deg, rgba(242, 130, 12, 0.15), rgba(255, 255, 255, 0.04));
+  background: linear-gradient(135deg, rgba(242, 130, 12, 0.14), var(--panel-bg));
 }
 
 .voto-meter-ring {
   display: grid;
-  width: 5.5rem;
+  width: 4.75rem;
   aspect-ratio: 1;
   place-items: center;
   color: #f2820c;
   border-radius: 999px;
   background:
-    radial-gradient(circle, #24211f 0 50%, transparent 51%),
+    radial-gradient(circle, var(--page-bg) 0 50%, transparent 51%),
     repeating-conic-gradient(#f2820c 0deg 12deg, transparent 12deg 22deg);
 }
 
 .status-row {
   display: flex;
-  min-height: 3rem;
+  min-height: 3.2rem;
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 0.875rem;
-  color: rgba(255, 253, 248, 0.86);
-  border: 1px solid #3a342f;
+  color: var(--page-fg);
+  border: 1px solid var(--panel-line);
   border-left: 4px solid #f2820c;
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--panel-bg);
   font-family: "Source Sans 3", system-ui, sans-serif;
   font-weight: 900;
 }
@@ -116,27 +151,27 @@ select {
   font-size: 0.7rem;
   font-weight: 900;
   text-transform: uppercase;
-  color: rgba(255, 237, 213, 0.58);
+  color: var(--muted-fg);
 }
 
 .metric-value {
   margin-top: 0.2rem;
   overflow: hidden;
   font-family: "Archivo Black", Impact, sans-serif;
-  font-size: clamp(0.9rem, 1.3vw, 1.25rem);
-  color: #fffdf8;
+  font-size: clamp(0.9rem, 1.3vw, 1.2rem);
+  color: var(--page-fg);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .voto-map-marker {
   display: grid;
-  place-items: center;
   width: 30px;
   height: 30px;
+  place-items: center;
+  border: 4px solid #f2820c;
   border-radius: 999px;
   background: #151413;
-  border: 4px solid #f2820c;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
 }
 
@@ -155,4 +190,22 @@ select {
 
 .leaflet-control-attribution {
   font-size: 10px;
+}
+
+@keyframes panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voto-card {
+    animation: none;
+  }
 }
