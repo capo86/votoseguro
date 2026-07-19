@@ -28,6 +28,7 @@ No tratar "lista" como entidad principal. La lista ayuda a identificar al candid
 | Iconos | lucide-react | usar Lucide para acciones, estados, inputs y menu |
 | Backend | Supabase | Postgres + Auth + Storage |
 | Mapas | OpenStreetMap | via Leaflet/react-leaflet |
+| PWA | vite-plugin-pwa + Workbox | app online-first, instalable Android/iOS |
 | Deploy | Vercel | build `npm run build`, output `dist` |
 
 No introducir Next.js, Redux ni CSS-in-JS sin una razon fuerte y aprobada.
@@ -39,6 +40,26 @@ No introducir Next.js, Redux ni CSS-in-JS sin una razon fuerte y aprobada.
 - Usar `lucide-react` para iconos de botones, menu, estados y campos.
 - No crear SVGs manuales para iconos si Lucide ya tiene uno equivalente.
 - Mantener alto contraste, foco visible y controles tactiles comodos.
+- El item administrativo de metricas debe mostrarse como **Resumen**, no como "Dashboard" ni "Panel" en textos visibles.
+- Footer visible: `Creado por Cleto Perez y Juan Bellenzier`.
+- SEO/Open Graph usa canonical `https://votoseguro-two.vercel.app/`, logo PPC y color naranja.
+- Open Graph principal: `public/og-votoseguro-ppc.png`.
+
+## 3.1 PWA
+
+- La app es PWA online-first: se instala y cachea interfaz/assets, pero las operaciones de Supabase requieren conexion.
+- No implementar carga offline ni sincronizacion local sin plan aprobado; puede crear conflictos de Voto Seguro.
+- Service worker registrado desde `src/main.tsx` con `virtual:pwa-register` y `autoUpdate`.
+- Configuracion PWA central en `vite.config.ts` usando `VitePWA`.
+- No cachear respuestas de Supabase/Auth/API ni datos sensibles en Workbox.
+- Iconos PWA generados desde `logo ppc oficial.png` con `npm run pwa:assets`.
+- Assets PWA en `public/pwa/`:
+  - favicons `16x16` y `32x32`
+  - Apple touch icons `152x152`, `167x167`, `180x180`
+  - Android icons `192x192`, `512x512`
+  - maskable icons `192x192`, `512x512`
+  - `splash-logo.png`
+- Si se cambia el logo oficial, regenerar assets con `npm run pwa:assets`, ejecutar build y verificar manifest.
 
 ## 4. Estructura de carpetas
 
@@ -54,6 +75,8 @@ src/
   pages/
   store/
   types/
+public/
+  pwa/
 supabase/
   migrations/
 ```
@@ -163,5 +186,6 @@ Antes de cerrar un cambio:
 
 - Ejecutar `npm run build`.
 - Ejecutar `npm audit --audit-level=moderate`.
+- Si se toca PWA, verificar `dist/manifest.webmanifest`, `dist/sw.js` y que los iconos respondan.
 - Verificar que no se expongan secretos.
 - Si se toca SQL, agregar y aplicar migracion correspondiente.
