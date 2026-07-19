@@ -1,0 +1,39 @@
+﻿[2026-07-18T20:27:42.7048017-03:00] Inspecting C:\data\inhabilitados.dbf
+INFO: Open of `C:\data\inhabilitados.dbf'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: inhabilitados
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-25
+Geometry: None
+Feature Count: 681923
+Layer SRS WKT:
+(unknown)
+DEPART: Integer (2.0)
+DISTRITO: Integer (2.0)
+ZONA: Integer (2.0)
+LOCAL: Integer (3.0)
+TALON: Integer (6.0)
+BOLETA: Integer (7.0)
+CEDULA: Integer (8.0)
+NOMBRE: String (30.0)
+APELLIDO: String (30.0)
+SEXO: String (1.0)
+FEC_NAC: Date
+FEC_DEFUNC: Date
+FEC_INSCRI: Date
+SERIE_BOLE: Integer (3.0)
+DIRECCION: String (100.0)
+LUGNAC: String (40.0)
+BARRIO: String (60.0)
+FECHA_EST: Date
+DESCRI_EST: String (100.0)
+ID_NACION: Integer (3.0)
+ID_TIPOREG: Integer (3.0)
+TIPO: String (1.0)
+FECHA_INSE: Date
+APE2: String (2.0)
+NOM2: String (2.0)
+_NullFlags: String (3.0)
+[2026-07-18T20:27:42.7741968-03:00] Importing into public.staging_inhabilitados
+0...10...20...30...40...50...60...70...80...90...100 - done in 00:01:44.

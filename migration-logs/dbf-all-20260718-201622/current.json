@@ -1,0 +1,8 @@
+﻿{
+    "table":  "staging_tipoins",
+    "file":  "tipoins.dbf",
+    "sizeBytes":  515,
+    "status":  "running",
+    "startedAt":  "2026-07-18T20:16:32.1964942-03:00",
+    "log":  "C:\\Users\\Admin\\Desktop\\votoseguro\\migration-logs\\dbf-all-20260718-201622\\staging_tipoins.log"
+}

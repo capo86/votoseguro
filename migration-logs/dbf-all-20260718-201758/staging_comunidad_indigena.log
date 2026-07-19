@@ -1,0 +1,16 @@
+﻿[2026-07-18T20:19:56.7950154-03:00] Inspecting C:\data\comunidad_indigena.dbf
+INFO: Open of `C:\data\comunidad_indigena.dbf'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: comunidad_indigena
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-19
+Geometry: None
+Feature Count: 717
+Layer SRS WKT:
+(unknown)
+COD_PUEBLO: Integer (3.0)
+COD_COMUNI: Integer (3.0)
+DESCRIP: String (100.0)
+[2026-07-18T20:19:56.8972110-03:00] Importing into public.staging_comunidad_indigena
+0...10...20...30...40...50...60...70...80...90...100 - done.

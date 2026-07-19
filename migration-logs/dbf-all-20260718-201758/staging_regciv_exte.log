@@ -1,0 +1,32 @@
+﻿[2026-07-18T20:21:33.4883247-03:00] Inspecting C:\data\regciv_exte.dbf
+INFO: Open of `C:\data\regciv_exte.dbf'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: regciv_exte
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-24
+Geometry: None
+Feature Count: 57276
+Layer SRS WKT:
+(unknown)
+IDENTIFICA: Integer64 (12.0)
+ANO: Integer (6.0)
+PAIS: Integer (5.0)
+CIUDAD: Integer (8.0)
+TIPO: String (1.0)
+TALON: Integer (8.0)
+BOLETA: Integer64 (10.0)
+SERIE_BOLE: String (12.0)
+CEDULA: Integer (8.0)
+FEC_INSCRI: Date
+NOMBRE: String (35.0)
+APELLIDO: String (35.0)
+FEC_NAC: Date
+SEXO: String (1.0)
+ID_NACION: Integer (5.0)
+MENORES: String (1.0)
+BARRIO: String (100.0)
+DIRECC: String (1.0)
+_NullFlags: String (2.0)
+[2026-07-18T20:21:33.5481082-03:00] Importing into public.staging_regciv_exte
+0...10...20...30...40...50...60...70...80...90...100 - done in 00:00:16.

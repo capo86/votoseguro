@@ -1,0 +1,15 @@
+﻿[2026-07-18T20:18:26.1577326-03:00] Inspecting C:\data\tiporeg.dbf
+INFO: Open of `C:\data\tiporeg.dbf'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: tiporeg
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-19
+Geometry: None
+Feature Count: 7
+Layer SRS WKT:
+(unknown)
+ID_TIPOREG: Integer (3.0)
+ESTADO: String (30.0)
+[2026-07-18T20:18:26.2139559-03:00] Importing into public.staging_tiporeg
+0...10...20...30...40...50...60...70...80...90...100 - done.

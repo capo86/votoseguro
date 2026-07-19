@@ -1,0 +1,18 @@
+﻿[2026-07-18T20:19:46.1771530-03:00] Inspecting C:\data\zon.dbf
+INFO: Open of `C:\data\zon.dbf'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: zon
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-19
+Geometry: None
+Feature Count: 304
+Layer SRS WKT:
+(unknown)
+DEPART: Integer (2.0)
+DISTRITO: Integer (2.0)
+ZONA: Integer (2.0)
+DESCRIP: String (60.0)
+_NullFlags: String (1.0)
+[2026-07-18T20:19:46.2383438-03:00] Importing into public.staging_zon
+0...10...20...30...40...50...60...70...80...90...100 - done.

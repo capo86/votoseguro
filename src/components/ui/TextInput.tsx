@@ -27,7 +27,7 @@ const TextInput = forwardRef<HTMLInputElement, TextInputProps>(function TextInpu
         <input
           aria-invalid={Boolean(error)}
           className={[
-            "min-h-12 w-full rounded-panel border border-neutral-300 border-l-4 border-l-brand-orange bg-white px-4 py-3 font-body text-base font-bold text-brand-ink outline-none transition placeholder:text-brand-muted focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-600 dark:bg-brand-field",
+            "min-h-12 w-full rounded-panel border border-neutral-300 border-l-4 border-l-brand-orange bg-white px-4 py-3 font-body text-base font-bold text-brand-ink outline-none transition placeholder:text-brand-muted read-only:cursor-not-allowed read-only:bg-neutral-100 read-only:text-neutral-700 focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-600 dark:bg-brand-field dark:read-only:bg-white/[0.06] dark:read-only:text-orange-50/80",
             icon ? "pl-12" : "",
             className,
           ].join(" ")}

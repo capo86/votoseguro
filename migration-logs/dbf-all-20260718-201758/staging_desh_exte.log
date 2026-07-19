@@ -1,0 +1,35 @@
+﻿[2026-07-18T20:20:33.6599199-03:00] Inspecting C:\data\desh_exte.dbf
+INFO: Open of `C:\data\desh_exte.dbf'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: desh_exte
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-25
+Geometry: None
+Feature Count: 8910
+Layer SRS WKT:
+(unknown)
+IDENTIFICA: Integer64 (12.0)
+ANO: Integer (6.0)
+PAIS: Integer (5.0)
+CIUDAD: Integer (8.0)
+TIPO: String (1.0)
+TALON: Integer64 (11.0)
+BOLETA: Integer64 (10.0)
+SERIE_BOLE: Integer (3.0)
+CEDULA: Integer (8.0)
+FEC_INSCRI: Date
+NOMBRE: String (35.0)
+APELLIDO: String (35.0)
+FEC_NAC: Date
+BARRIO: String (250.0)
+SEXO: String (8.0)
+ID_NACION: Integer (5.0)
+SECUENCIA: Integer (3.0)
+FECHA_HABI: Date
+FECHA_INGR: Date
+MOTIVO: String (100.0)
+COD_DESHAB: Integer (7.0)
+_NullFlags: String (2.0)
+[2026-07-18T20:20:33.7208703-03:00] Importing into public.staging_desh_exte
+0...10...20...30...40...50...60...70...80...90...100 - done in 00:00:07.

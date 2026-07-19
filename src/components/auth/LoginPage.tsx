@@ -86,7 +86,7 @@ function LoginPage({
               Equipo autorizado
             </p>
             <p className="mt-1 font-body text-lg font-black leading-tight text-brand-ink dark:text-white">
-              Ingresa con el usuario creado en Supabase.
+              Ingresa con tu usuario y contraseña para accede.
             </p>
           </div>
         </div>

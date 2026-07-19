@@ -1,0 +1,39 @@
+﻿[2026-07-18T20:29:49.3094018-03:00] Inspecting C:\data\regciv.dbf
+INFO: Open of `C:\data\regciv.dbf'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: regciv
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-24
+Geometry: None
+Feature Count: 5056524
+Layer SRS WKT:
+(unknown)
+DEPART: Integer (2.0)
+DISTRITO: Integer (2.0)
+ZONA: Integer (2.0)
+LOCAL: Integer (3.0)
+TALON: Integer64 (10.0)
+BOLETA: Integer (7.0)
+CEDULA: Integer (8.0)
+NOMBRE: String (35.0)
+APELLIDO: String (35.0)
+SEXO: String (1.0)
+FEC_NAC: Date
+FEC_INSCRI: Date
+TIPO: String (1.0)
+ID_NACION: Integer (3.0)
+MENORES: String (1.0)
+INTERDICTO: String (1.0)
+POL_MIL: String (1.0)
+FISCALES: String (1.0)
+ES_INDIGEN: String (1.0)
+COD_PUEBLO: Integer (3.0)
+COD_COMUNI: Integer (3.0)
+TIENE_DISC: String (1.0)
+COD_DISCAP: Integer (3.0)
+REF_DISCAP: String (120.0)
+DIRECC: String (1.0)
+_NullFlags: String (2.0)
+[2026-07-18T20:29:49.3696049-03:00] Importing into public.staging_regciv
+ERROR 1: ERROR:  cannot execute COPY FROM in a read-only transaction

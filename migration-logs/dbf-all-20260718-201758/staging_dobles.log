@@ -1,0 +1,30 @@
+﻿[2026-07-18T20:22:33.2519842-03:00] Inspecting C:\data\dobles.dbf
+INFO: Open of `C:\data\dobles.dbf'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: dobles
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-24
+Geometry: None
+Feature Count: 1498204
+Layer SRS WKT:
+(unknown)
+DEPART: Integer (2.0)
+DISTRITO: Integer (2.0)
+ZONA: Integer (3.0)
+LOCAL: Integer (3.0)
+TALON: Integer (8.0)
+BOLETA: Integer64 (10.0)
+SERIE_BOLE: String (30.0)
+CEDULA: Integer (8.0)
+FEC_INSCRI: Date
+NOMBRE: String (30.0)
+APELLIDO: String (30.0)
+SEXO: String (1.0)
+ID_NACION: Integer (5.0)
+TIPO: String (1.0)
+FEC_NAC: Date
+ID_TIPOREG: Integer (3.0)
+_NullFlags: String (2.0)
+[2026-07-18T20:22:33.3025441-03:00] Importing into public.staging_dobles
+0...10...20...30...40...50...60...70...80...90...100 - done in 00:04:52.

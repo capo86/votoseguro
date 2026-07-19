@@ -1,0 +1,17 @@
+﻿[2026-07-18T20:18:56.7464653-03:00] Inspecting C:\data\dep.dbf
+INFO: Open of `C:\data\dep.dbf'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: dep
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-19
+Geometry: None
+Feature Count: 19
+Layer SRS WKT:
+(unknown)
+DEPART: Integer (2.0)
+DESCRIP: String (15.0)
+TOT_HAB: Integer (7.0)
+CAN_MESA: Integer (5.0)
+[2026-07-18T20:18:56.7960956-03:00] Importing into public.staging_dep
+0...10...20...30...40...50...60...70...80...90...100 - done.

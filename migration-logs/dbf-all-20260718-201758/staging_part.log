@@ -1,0 +1,26 @@
+﻿[2026-07-18T20:18:44.8131668-03:00] Inspecting C:\data\part.DBF
+INFO: Open of `C:\data\part.DBF'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: part
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-19
+Geometry: None
+Feature Count: 0
+Layer SRS WKT:
+(unknown)
+CODIGO: Integer (3.0)
+ANIO: Integer (4.0)
+CRUZAR: Integer(Boolean) (1.0)
+NOMBRE: String (50.0)
+ESPARTIDO: Integer(Boolean) (1.0)
+SIGLAS: String (20.0)
+CERTIFICA: Integer(Boolean) (1.0)
+PRI_ENTRE: Date
+SEG_ENTRE: Date
+RUTA: String (200.0)
+NACIONAL: String (40.0)
+EXTERIOR: String (40.0)
+VIEJO: String (3.0)
+_NullFlags: String (1.0)
+[2026-07-18T20:18:44.8828938-03:00] Importing into public.staging_part

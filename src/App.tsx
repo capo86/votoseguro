@@ -8,8 +8,8 @@ import { useTheme } from "./hooks/useTheme";
 import { useAppStore } from "./store/appStore";
 
 const CandidatosPage = lazy(() => import("./pages/CandidatosPage"));
+const PadronContextPage = lazy(() => import("./pages/PadronContextPage"));
 const RegistroVotantePage = lazy(() => import("./pages/RegistroVotantePage"));
-const VotoSeguroHomePage = lazy(() => import("./pages/VotoSeguroHomePage"));
 
 function SectionFallback() {
   return (
@@ -48,14 +48,14 @@ function App() {
 
   const renderActiveSection = () => {
     if (activeSection === "votoseguro") {
-      return <VotoSeguroHomePage />;
+      return <RegistroVotantePage />;
     }
 
     if (activeSection === "candidatos") {
       return <CandidatosPage />;
     }
 
-    return <RegistroVotantePage />;
+    return <PadronContextPage />;
   };
 
   if (auth.isLoading) {

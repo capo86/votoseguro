@@ -1,0 +1,18 @@
+﻿[2026-07-18T20:22:06.6810007-03:00] Inspecting C:\data\ciudades.dbf
+INFO: Open of `C:\data\ciudades.dbf'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: ciudades
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-19
+Geometry: None
+Feature Count: 318467
+Layer SRS WKT:
+(unknown)
+ID_PAIS: Integer (5.0)
+ID_CIUDAD: Integer64 (13.0)
+DES_CIUDAD: String (50.0)
+USO: String (1.0)
+_NullFlags: String (1.0)
+[2026-07-18T20:22:06.7365712-03:00] Importing into public.staging_ciudades
+0...10...20...30...40...50...60...70...80...90...100 - done in 00:00:13.

@@ -1,0 +1,8 @@
+﻿{
+    "table":  "staging_regciv",
+    "file":  "regciv.dbf",
+    "sizeBytes":  1334923465,
+    "status":  "running",
+    "startedAt":  "2026-07-18T20:29:49.3094018-03:00",
+    "log":  "C:\\Users\\Admin\\Desktop\\votoseguro\\migration-logs\\dbf-all-20260718-201758\\staging_regciv.log"
+}

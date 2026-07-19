@@ -1,0 +1,27 @@
+﻿[2026-07-18T20:20:18.5086056-03:00] Inspecting C:\data\desafiliaciones.dbf
+INFO: Open of `C:\data\desafiliaciones.dbf'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: desafiliaciones
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-19
+Geometry: None
+Feature Count: 7538
+Layer SRS WKT:
+(unknown)
+CEDULA: Integer (8.0)
+NOMBRE: String (30.0)
+APELLIDO: String (30.0)
+LETRA_PART: String (3.0)
+USUARIO: String (15.0)
+FECHA: Date
+PROCESADO: String (1.0)
+LUGAR_PRES: String (2.0)
+TIPO_DOC: String (1.0)
+FECHA_DOC: Date
+OBSERVACIO: String (254.0)
+PARTIDO: Integer (5.0)
+OLDCODPART: Integer (5.0)
+_NullFlags: String (1.0)
+[2026-07-18T20:20:18.5697715-03:00] Importing into public.staging_desafiliaciones
+0...10...20...30...40...50...60...70...80...90...100 - done.

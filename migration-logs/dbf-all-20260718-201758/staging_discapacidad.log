@@ -1,0 +1,15 @@
+﻿[2026-07-18T20:18:35.6532780-03:00] Inspecting C:\data\discapacidad.dbf
+INFO: Open of `C:\data\discapacidad.dbf'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: discapacidad
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-19
+Geometry: None
+Feature Count: 8
+Layer SRS WKT:
+(unknown)
+COD_DISCAP: Real (19.0)
+DESCRIP: String (20.0)
+[2026-07-18T20:18:35.7305230-03:00] Importing into public.staging_discapacidad
+0...10...20...30...40...50...60...70...80...90...100 - done.

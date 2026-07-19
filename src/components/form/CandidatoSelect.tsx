@@ -5,10 +5,13 @@ import type { Candidato } from "../../types/candidato";
 interface CandidatoSelectProps {
   candidatos: Candidato[];
   error?: string;
+  isLoading?: boolean;
   register: UseFormRegisterReturn;
 }
 
-function CandidatoSelect({ candidatos, error, register }: CandidatoSelectProps) {
+function CandidatoSelect({ candidatos, error, isLoading = false, register }: CandidatoSelectProps) {
+  const hasCandidatos = candidatos.length > 0;
+
   return (
     <div className="space-y-2">
       <label
@@ -26,14 +29,18 @@ function CandidatoSelect({ candidatos, error, register }: CandidatoSelectProps) 
         />
         <select
           aria-invalid={Boolean(error)}
-          className="min-h-12 w-full appearance-none rounded-panel border border-neutral-300 border-l-4 border-l-brand-orange bg-white px-4 py-3 pl-12 font-body text-base font-black text-brand-ink outline-none transition focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 dark:bg-brand-field"
+          className="min-h-12 w-full appearance-none rounded-panel border border-neutral-300 border-l-4 border-l-brand-orange bg-white px-4 py-3 pl-12 font-body text-base font-black text-brand-ink outline-none transition focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-brand-field"
+          disabled={isLoading || !hasCandidatos}
           id="candidatoId"
           {...register}
         >
-          <option value="">Seleccionar</option>
+          <option value="">
+            {isLoading ? "Cargando candidatos" : hasCandidatos ? "Seleccionar candidato" : "Sin candidatos cargados"}
+          </option>
           {candidatos.map((candidato) => (
             <option key={candidato.id} value={candidato.id}>
-              {candidato.nombre} · {candidato.cargo}
+              {candidato.nombreCandidato} - Lista {candidato.numeroLista || "-"}
+              {candidato.localidad ? ` - ${candidato.localidad}` : ""}
             </option>
           ))}
         </select>

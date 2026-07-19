@@ -1,0 +1,18 @@
+﻿[2026-07-18T20:19:07.1969836-03:00] Inspecting C:\data\tgen.DBF
+INFO: Open of `C:\data\tgen.DBF'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: tgen
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-19
+Geometry: None
+Feature Count: 8
+Layer SRS WKT:
+(unknown)
+ETIQUETA: String (6.0)
+CODIGO: Integer (7.0)
+DESCRIP: String (100.0)
+REFERENCIA: String (5.0)
+_NullFlags: String (1.0)
+[2026-07-18T20:19:07.2451631-03:00] Importing into public.staging_tgen
+0...10...20...30...40...50...60...70...80...90...100 - done.

@@ -1,0 +1,17 @@
+﻿[2026-07-18T20:19:25.6612519-03:00] Inspecting C:\data\nacionalidades.dbf
+INFO: Open of `C:\data\nacionalidades.dbf'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: nacionalidades
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-19
+Geometry: None
+Feature Count: 206
+Layer SRS WKT:
+(unknown)
+ID_NACION: Integer (5.0)
+DES_NACION: String (50.0)
+USO: String (1.0)
+_NullFlags: String (1.0)
+[2026-07-18T20:19:25.7486243-03:00] Importing into public.staging_nacionalidades
+0...10...20...30...40...50...60...70...80...90...100 - done.

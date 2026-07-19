@@ -36,7 +36,7 @@ const navItems = [
   },
   {
     id: "votoseguro",
-    label: "VotoSeguro",
+    label: "Voto Seguro",
     icon: Vote,
   },
   {
@@ -183,7 +183,7 @@ function AppShell({
       <aside
         aria-label="Menu principal"
         className={[
-          "fixed left-0 top-0 z-50 h-dvh w-[min(20rem,calc(100vw-1rem))] -translate-x-full border-r border-neutral-200 bg-brand-field shadow-panel transition-transform duration-300 dark:border-brand-line dark:bg-brand-coal lg:sticky lg:top-0 lg:z-20 lg:h-screen lg:w-72 lg:translate-x-0",
+          "fixed left-0 top-0 z-50 h-dvh w-[min(20rem,calc(100vw-1rem))] -translate-x-full border-r border-neutral-200 bg-brand-field shadow-panel transition-transform duration-300 dark:border-brand-line dark:bg-brand-coal lg:z-20 lg:h-screen lg:w-72 lg:translate-x-0",
           isMenuOpen ? "translate-x-0" : "",
         ].join(" ")}
       >

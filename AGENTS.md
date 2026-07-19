@@ -1,101 +1,98 @@
-# AGENTS.md — VotoSeguro
+# AGENTS.md - VotoSeguro
 
-Guía de referencia para cualquier agente de IA (o humano) que trabaje en este repositorio. Léela completa antes de tocar código.
+Guia de referencia para cualquier agente de IA o humano que trabaje en este repositorio.
+Leerla completa antes de tocar codigo.
 
-## 1. Qué es este proyecto
+## 1. Contexto del proyecto
 
-**VotoSeguro** es una aplicación web para:
-1. Consultar el **padrón electoral** de una persona por número de **cédula** (nombre, departamento, distrito, zona y local de votación).
-2. Permitir que esa persona registre su **ubicación** (mapa OpenStreetMap), su **teléfono** y su **candidato de preferencia**.
-3. Guardar todo en **Supabase** para su posterior gestión (fiscalización de votos, logística el día de la elección, contacto telefónico, etc).
+**VotoSeguro** es una aplicacion web para trabajo territorial electoral.
 
-El formulario de referencia (ver captura compartida) tiene esta forma:
+Contextos principales:
 
-```
-👤 NOMBRE Y APELLIDO      [ editable, se completa solo o manual ]
-🔒 DEPARTAMENTO           [ bloqueado, viene de la consulta de cédula ]
-🔒 DISTRITO               [ bloqueado, viene de la consulta de cédula ]
-🔒 ZONA                   [ bloqueado, viene de la consulta de cédula ]
-🔒 LOCAL                  [ bloqueado, viene de la consulta de cédula ]
-```
+- **Candidatos**: ABM de candidatos. El dato principal es `nombre_candidato`; `numero_lista`, `localidad`, `departamento` y `ciudad` son datos secundarios de identificacion territorial.
+- **Voto Seguro**: carga operativa del votante. Desde aca se consulta o completa la informacion del padron, telefono, ubicacion y candidato asociado.
+- **Padron**: contexto de migracion/importacion. Queda reservado para tablas fuente DBF del padron de Paraguay y futuras tablas normalizadas de departamentos, ciudades, zonas y locales.
 
-A eso se le suman los campos nuevos: teléfono, ubicación (mapa) y candidato.
+No tratar "lista" como entidad principal. La lista ayuda a identificar al candidato por localidad, pero la UI y el modelo deben dar preponderancia al candidato.
 
-## 2. Stack tecnológico
+## 2. Stack tecnologico
 
-| Capa | Tecnología | Notas |
+| Capa | Tecnologia | Notas |
 |---|---|---|
-| Build tool | **Vite** | modo `react-ts` |
-| UI | **React 18** (estable, sin RC/canary) | function components + hooks |
-| Lenguaje | **TypeScript** (estable) | `strict: true` en `tsconfig.json` |
-| Estilos | **Tailwind CSS** (estable, v3.x) | sin plugins experimentales |
-| Iconos | **lucide-react** | usar iconos Lucide para acciones, estados y ayudas visuales |
-| Backend / DB | **Supabase** | Postgres + Auth + Storage si hace falta |
-| Mapas | **OpenStreetMap** vía `react-leaflet` + `leaflet` | no usar Google Maps (requiere billing) |
-| Deploy | **Vercel** | build command `vite build`, output `dist` |
-| Consulta de padrón | API externa de cédula → padrón (TSJE u homólogo) | ver sección 6 |
+| Build tool | Vite | modo `react-ts` |
+| UI | React 18 | function components + hooks |
+| Estado | Zustand | estado global liviano: auth, tema, navegacion |
+| Lenguaje | TypeScript | `strict: true` |
+| Estilos | Tailwind CSS v3 | mobile first, claro/oscuro |
+| Iconos | lucide-react | usar Lucide para acciones, estados, inputs y menu |
+| Backend | Supabase | Postgres + Auth + Storage |
+| Mapas | OpenStreetMap | via Leaflet/react-leaflet |
+| Deploy | Vercel | build `npm run build`, output `dist` |
 
-No introducir Next.js, Redux, ni CSS-in-JS: el proyecto se mantiene simple (Vite SPA + Tailwind).
+No introducir Next.js, Redux ni CSS-in-JS sin una razon fuerte y aprobada.
 
-## 3. Estructura de carpetas
+## 3. Identidad visual
 
-```
-votoseguro/
-├─ src/
-│  ├─ components/
-│  │  ├─ form/
-│  │  │  ├─ CedulaLookupField.tsx     # input de cédula + botón "buscar"
-│  │  │  ├─ PadronReadonlyFields.tsx  # departamento/distrito/zona/local
-│  │  │  ├─ PhoneField.tsx
-│  │  │  ├─ CandidatoSelect.tsx
-│  │  │  └─ LocationPickerMap.tsx     # mapa Leaflet + OSM
-│  │  └─ ui/                          # botones, inputs, cards reutilizables
-│  ├─ lib/
-│  │  ├─ supabaseClient.ts
-│  │  └─ padronApi.ts                 # wrapper del fetch a la API de cédula
-│  ├─ types/
-│  │  ├─ votante.ts
-│  │  └─ candidato.ts
-│  ├─ hooks/
-│  │  └─ usePadronLookup.ts
-│  ├─ pages/ (o routes/ si se agrega router)
-│  │  └─ RegistroVotantePage.tsx
-│  ├─ App.tsx
-│  └─ main.tsx
-├─ supabase/
-│  └─ migrations/                     # SQL versionado, ver sección 5
-├─ .env.example
-├─ tailwind.config.ts
-├─ vite.config.ts
-├─ tsconfig.json
-└─ AGENTS.md
+- Usar el naranja del logo PPC como acento principal: `brand-orange` / `#F2820C`.
+- Mantener la UI mobile first.
+- Usar `lucide-react` para iconos de botones, menu, estados y campos.
+- No crear SVGs manuales para iconos si Lucide ya tiene uno equivalente.
+- Mantener alto contraste, foco visible y controles tactiles comodos.
+
+## 4. Estructura de carpetas
+
+```txt
+src/
+  components/
+    auth/
+    form/
+    layout/
+    ui/
+  hooks/
+  lib/
+  pages/
+  store/
+  types/
+supabase/
+  migrations/
 ```
 
-## 4. Convenciones de código
+## 5. Convenciones de codigo
 
-- **Componentes**: un componente por archivo, nombre en PascalCase, export default al final.
-- **Tipado**: nada de `any`. Definir interfaces en `src/types/` y reusarlas (`Votante`, `Candidato`, `PadronResponse`).
-- **Formularios**: usar `react-hook-form` + `zod` para validación (cédula numérica, teléfono con formato PY `09XXXXXXXX`).
-- **Estilos Tailwind**: seguir la paleta de la captura — fondo oscuro `bg-neutral-800`, acento naranja del logo PPC `#F2820C`/`orange-500`, inputs blancos con borde izquierdo naranja (`border-l-4 border-orange-500`).
-- **Iconografía**: usar `lucide-react` como librería estándar de iconos. Preferir iconos Lucide en botones, estados, inputs con ayuda visual y acciones del formulario antes que SVGs manuales.
-- **Fetch a Supabase**: siempre a través de `src/lib/supabaseClient.ts`, nunca instanciar el cliente en un componente.
-- **Nombres de tabla/columnas**: `snake_case` en Supabase, mapear a `camelCase` en TypeScript en la capa `types/`.
-- **Commits**: convencional (`feat:`, `fix:`, `chore:`), en español, mensajes cortos.
+- Componentes en PascalCase, un componente por archivo cuando sea razonable.
+- Tipos compartidos en `src/types/`.
+- Acceso a Supabase solo desde `src/lib/`; no instanciar clientes en componentes.
+- Formularios con `react-hook-form` + `zod` cuando haya validacion.
+- Supabase usa `snake_case`; TypeScript usa `camelCase`.
+- No hardcodear secretos. Las variables `VITE_*` quedan expuestas en el bundle.
 
-## 5. Esquema de datos en Supabase
+## 6. Esquema Supabase
 
 ### Tabla `candidatos`
+
+La columna principal de nombre es `nombre_candidato`.
 
 ```sql
 create table public.candidatos (
   id uuid primary key default gen_random_uuid(),
-  nombre text not null,
-  cargo text,                 -- ej. "Intendente", "Concejal", "Diputado"
+  nombre text not null, -- compatibilidad temporal
+  nombre_candidato text not null,
+  cargo text,
+  numero_lista text,
+  localidad text,
+  departamento text,
+  ciudad text,
   foto_url text,
+  observaciones text,
   activo boolean default true,
-  created_at timestamptz default now()
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  created_by_user text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 ```
+
+`nombre` se mantiene por compatibilidad con migraciones iniciales. La app debe leer y mostrar `nombre_candidato`.
 
 ### Tabla `votantes`
 
@@ -115,74 +112,45 @@ create table public.votantes (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
-
-create index votantes_cedula_idx on public.votantes (cedula);
-create index votantes_candidato_idx on public.votantes (candidato_id);
 ```
 
-- Habilitar **Row Level Security (RLS)** en ambas tablas desde el día 1.
-- Política mínima para empezar: `insert` público restringido por rate-limit (o vía función Edge), `select`/`update`/`delete` solo para roles autenticados (equipo de campaña).
-- Guardar cada migración nueva en `supabase/migrations/NNNN_descripcion.sql`.
+Crear migraciones nuevas en `supabase/migrations/NNNN_descripcion.sql`.
+Mantener RLS habilitado y politicas restrictivas para escritura.
 
-## 6. Consulta de padrón por cédula
+## 7. Supabase Auth y Storage
 
-- Crear `src/lib/padronApi.ts` con una función `buscarPorCedula(cedula: string): Promise<PadronResponse>`.
-- Idealmente esta llamada **no** se hace directo desde el cliente si la API externa no tiene CORS habilitado o requiere una key: usar una **Supabase Edge Function** como proxy (`supabase/functions/padron-lookup/index.ts`) que reciba la cédula, llame a la API real del lado del servidor, y devuelva el JSON limpio al frontend.
-- Definir el tipo de respuesta esperado:
-
-```ts
-export interface PadronResponse {
-  cedula: string;
-  nombreApellido: string;
-  departamento: string;
-  distrito: string;
-  zona: string;
-  local: string;
-}
-```
-
-- Manejar estados: `idle | loading | found | not_found | error` en el hook `usePadronLookup`.
-- Los campos departamento/distrito/zona/local se muestran **bloqueados** (readonly) tal como en la captura, una vez llega la respuesta.
-
-## 7. Ubicación con OpenStreetMap
-
-- Librería: `leaflet` + `react-leaflet` (no requieren API key).
-- Tiles: `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png` respetando la política de uso de OSM (agregar atribución visible en el mapa).
-- Guardar solo `lat`/`lng` en la tabla `votantes`.
-- Ofrecer botón "usar mi ubicación actual" con `navigator.geolocation.getCurrentPosition`, y permitir mover un marcador manualmente como respaldo.
+- Auth se usa para usuarios del equipo.
+- Storage bucket de fotos de candidatos: `candidate-photos`.
+- El frontend solo usa URL y publishable key.
+- Service role, secret key, access tokens y passwords nunca van en frontend ni Vercel como `VITE_*`.
 
 ## 8. Variables de entorno
 
 `.env.example`:
 
-```
+```txt
 VITE_SUPABASE_URL=
-VITE_SUPABASE_ANON_KEY=
+VITE_SUPABASE_PUBLISHABLE_KEY=
 VITE_PADRON_API_URL=
 ```
 
-Nunca commitear `.env`. Las keys sensibles de la API del padrón (si las hay) van solo en la Edge Function de Supabase, no en variables `VITE_*` (esas quedan expuestas en el bundle del cliente).
+En Vercel configurar solo variables necesarias para cliente con prefijo `VITE_`.
 
-## 9. Deploy en Vercel
+## 9. Padron
 
-- Framework preset: **Vite**.
-- Build command: `npm run build`.
-- Output directory: `dist`.
-- Configurar las mismas variables de entorno (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) en el dashboard de Vercel.
-- Cada PR a `main` genera un preview deploy; mergear a `main` despliega a producción.
+`src/lib/padronApi.ts` expone `buscarPorCedula(cedula)`.
 
-## 10. Roadmap (fases)
+Cuando exista fuente real:
 
-1. **Fase 1 (actual)** — Replicar el formulario visual: nombre, departamento/distrito/zona/local (mock o estático).
-2. **Fase 2** — Conectar la consulta real por cédula (Edge Function + `padronApi.ts`).
-3. **Fase 3** — Agregar mapa OSM para ubicación + campo de teléfono.
-4. **Fase 4** — Agregar selección de candidato, conectar todo a Supabase (insert/upsert por cédula), panel simple de administración/listado.
-5. **Fase 5** — RLS afinado, autenticación del equipo de campaña, exportación de datos (CSV).
+- Si la API externa requiere secret o no tiene CORS, usar Supabase Edge Function como proxy.
+- Si se importan DBF, crear tablas staging y luego tablas normalizadas.
+- La pantalla `Padron` no debe convertirse en ABM de Voto Seguro.
 
-## 11. Checklist antes de abrir un PR
+## 10. Verificacion
 
-- [ ] `npm run build` sin errores de TypeScript.
-- [ ] Tailwind sin clases arbitrarias innecesarias; reusar tokens del `tailwind.config.ts`.
-- [ ] Ninguna key sensible hardcodeada.
-- [ ] Migraciones SQL agregadas si se tocó el esquema.
-- [ ] Formulario probado con cédula válida e inválida (estados `loading`/`not_found`/`error`).
+Antes de cerrar un cambio:
+
+- Ejecutar `npm run build`.
+- Ejecutar `npm audit --audit-level=moderate`.
+- Verificar que no se expongan secretos.
+- Si se toca SQL, agregar y aplicar migracion correspondiente.

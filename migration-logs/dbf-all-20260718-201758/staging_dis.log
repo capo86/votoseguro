@@ -1,0 +1,17 @@
+﻿[2026-07-18T20:19:35.8114256-03:00] Inspecting C:\data\dis.dbf
+INFO: Open of `C:\data\dis.dbf'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: dis
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-19
+Geometry: None
+Feature Count: 267
+Layer SRS WKT:
+(unknown)
+DEPART: Integer (2.0)
+DISTRITO: Integer (2.0)
+DESCRIP: String (50.0)
+_NullFlags: String (1.0)
+[2026-07-18T20:19:35.8773500-03:00] Importing into public.staging_dis
+0...10...20...30...40...50...60...70...80...90...100 - done.

@@ -40,7 +40,7 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set) => ({
-  activeSection: "padron",
+  activeSection: "votoseguro",
   closeMenu: () => set({ isMenuOpen: false }),
   isAuthLoading: true,
   isMenuOpen: false,

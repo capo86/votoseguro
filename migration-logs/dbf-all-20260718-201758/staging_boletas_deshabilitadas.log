@@ -1,0 +1,35 @@
+﻿[2026-07-18T20:20:57.3569196-03:00] Inspecting C:\data\boletas_deshabilitadas.dbf
+INFO: Open of `C:\data\boletas_deshabilitadas.dbf'
+      using driver `ESRI Shapefile' successful.
+
+Layer name: boletas_deshabilitadas
+Metadata:
+  DBF_DATE_LAST_UPDATE=1926-03-24
+Geometry: None
+Feature Count: 16878
+Layer SRS WKT:
+(unknown)
+DEPART: Integer (2.0)
+DISTRITO: Integer (2.0)
+ZONA: Integer (2.0)
+LOCAL: Integer (3.0)
+TALON: Integer (8.0)
+BOLETA: Integer64 (10.0)
+SERIE_BOLE: Integer (3.0)
+CEDULA: Integer (8.0)
+FEC_INSCRI: Date
+NOMBRE: String (30.0)
+APELLIDO: String (30.0)
+SEXO: String (1.0)
+ID_NACION: Integer (5.0)
+SECUENCIA: Integer (3.0)
+IDENTIFICA: Integer (9.0)
+ANO: Integer (6.0)
+DESCRI_EST: String (150.0)
+FECHA_HABI: Date
+TIPO: String (1.0)
+FECHA_INGR: Date
+FEC_NAC: Date
+_NullFlags: String (2.0)
+[2026-07-18T20:20:57.4067759-03:00] Importing into public.staging_boletas_deshabilitadas
+0...10...20...30...40...50...60...70...80...90...100 - done in 00:00:18.

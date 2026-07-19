@@ -1,0 +1,2 @@
+﻿"table","file","size_bytes","status","started_at","ended_at","exit_code","duration_seconds","message"
+"staging_tipoins","tipoins.dbf",515,"failed","2026-07-18T20:16:32.1964942-03:00","2026-07-18T20:16:43.5023107-03:00",1,11,"Warning 1: User lacks super user privilege to be able to create event trigger ogr_system_tables_event_trigger_for_metadata"
