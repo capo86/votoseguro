@@ -1,21 +1,25 @@
 import type { User } from "@supabase/supabase-js";
 import type { Candidato } from "../types/candidato";
+import type { UserProfile } from "../types/userProfile";
 import type { PadronResponse, RegistroVotanteFormValues } from "../types/votante";
 import { supabase } from "./supabaseClient";
 
 export interface CrearVotoSeguroSnapshotArgs {
   candidato: Candidato;
   padron: PadronResponse | null;
+  profile: UserProfile | null;
   user: User | null;
   values: RegistroVotanteFormValues;
 }
 
 export interface VotoSeguroFilters {
   candidatoId?: string;
-  cedula?: string;
+  ciudad?: string;
+  departamento?: string;
   dateFrom?: string;
   dateTo?: string;
   loadedBy?: string;
+  loadedByLocalidad?: string;
 }
 
 export interface VotoSeguroRecord {
@@ -35,7 +39,12 @@ export interface VotoSeguroRecord {
   candidatoNumeroLista?: string;
   candidatoCargo?: string;
   loadedBy?: string;
-  loadedByEmail?: string;
+  loadedByCedula?: string;
+  loadedByCiudad?: string;
+  loadedByDepartamento?: string;
+  loadedByLocalidad?: string;
+  loadedByNombre?: string;
+  loadedByRole?: string;
   estado: string;
   createdAt: string;
 }
@@ -57,17 +66,22 @@ interface VotoSeguroRow {
   candidato_numero_lista: string | null;
   candidato_cargo: string | null;
   loaded_by: string | null;
-  loaded_by_email: string | null;
+  loaded_by_cedula: string | null;
+  loaded_by_ciudad: string | null;
+  loaded_by_departamento: string | null;
+  loaded_by_localidad: string | null;
+  loaded_by_nombre: string | null;
+  loaded_by_role: string | null;
   estado: string;
   created_at: string;
 }
 
 const VOTO_SEGURO_COLUMNS =
-  "id,cedula,nombre_apellido,telefono,departamento,distrito_descripcion,zona_descripcion,local_descripcion,local_votacion,mesa,orden,candidato_id,candidato_nombre,candidato_numero_lista,candidato_cargo,loaded_by,loaded_by_email,estado,created_at";
+  "id,cedula,nombre_apellido,telefono,departamento,distrito_descripcion,zona_descripcion,local_descripcion,local_votacion,mesa,orden,candidato_id,candidato_nombre,candidato_numero_lista,candidato_cargo,loaded_by,loaded_by_cedula,loaded_by_ciudad,loaded_by_departamento,loaded_by_localidad,loaded_by_nombre,loaded_by_role,estado,created_at";
 
 function requireSupabase() {
   if (!supabase) {
-    throw new Error("Supabase no esta configurado.");
+    throw new Error("El servicio no esta configurado.");
   }
 
   return supabase;
@@ -100,7 +114,12 @@ function rowToVotoSeguroRecord(row: VotoSeguroRow): VotoSeguroRecord {
     estado: row.estado,
     id: row.id,
     loadedBy: row.loaded_by ?? undefined,
-    loadedByEmail: row.loaded_by_email ?? undefined,
+    loadedByCedula: row.loaded_by_cedula ?? undefined,
+    loadedByCiudad: row.loaded_by_ciudad ?? undefined,
+    loadedByDepartamento: row.loaded_by_departamento ?? undefined,
+    loadedByLocalidad: row.loaded_by_localidad ?? undefined,
+    loadedByNombre: row.loaded_by_nombre ?? undefined,
+    loadedByRole: row.loaded_by_role ?? undefined,
     local: row.local_descripcion ?? undefined,
     localVotacion: row.local_votacion ?? undefined,
     mesa: row.mesa ?? undefined,
@@ -114,6 +133,7 @@ function rowToVotoSeguroRecord(row: VotoSeguroRow): VotoSeguroRecord {
 export async function crearVotoSeguroSnapshot({
   candidato,
   padron,
+  profile,
   user,
   values,
 }: CrearVotoSeguroSnapshotArgs) {
@@ -121,6 +141,10 @@ export async function crearVotoSeguroSnapshot({
 
   if (!values.ubicacion) {
     throw new Error("Marca la ubicacion del votante antes de guardar.");
+  }
+
+  if (!profile || !user) {
+    throw new Error("Tu usuario no tiene perfil operativo activo.");
   }
 
   const payload = {
@@ -142,7 +166,12 @@ export async function crearVotoSeguroSnapshot({
     fecha_inscripcion: padron?.fechaInscripcion ?? null,
     fecha_nacimiento: padron?.fechaNacimiento ?? null,
     loaded_by: user?.id,
-    loaded_by_email: emptyToNull(user?.email),
+    loaded_by_cedula: profile.cedula,
+    loaded_by_ciudad: profile.ciudad,
+    loaded_by_departamento: profile.departamento,
+    loaded_by_localidad: emptyToNull(profile.localidad),
+    loaded_by_nombre: profile.nombreApellido,
+    loaded_by_role: profile.role,
     local: toNumber(padron?.localCodigo),
     local_descripcion: values.local.trim(),
     local_votacion: emptyToNull(padron?.localVotacion ?? values.local),
@@ -176,24 +205,34 @@ export async function crearVotoSeguroSnapshot({
 
 export async function listarVotoSeguroSnapshots(filters: VotoSeguroFilters = {}) {
   const client = requireSupabase();
+  const departamento = filters.departamento?.trim();
+  const ciudad = filters.ciudad?.trim();
+  const loadedByLocalidad = filters.loadedByLocalidad?.trim();
+
   let query = client
     .from("votoseguro")
     .select(VOTO_SEGURO_COLUMNS)
     .order("created_at", { ascending: false })
     .limit(80);
 
-  const normalizedCedula = filters.cedula?.replace(/\D/g, "");
-
-  if (normalizedCedula) {
-    query = query.ilike("cedula", `%${normalizedCedula}%`);
-  }
-
   if (filters.candidatoId) {
     query = query.eq("candidato_id", filters.candidatoId);
   }
 
+  if (departamento) {
+    query = query.ilike("departamento", `%${departamento}%`);
+  }
+
+  if (ciudad) {
+    query = query.ilike("distrito_descripcion", `%${ciudad}%`);
+  }
+
   if (filters.loadedBy) {
     query = query.eq("loaded_by", filters.loadedBy);
+  }
+
+  if (loadedByLocalidad) {
+    query = query.ilike("loaded_by_localidad", `%${loadedByLocalidad}%`);
   }
 
   if (filters.dateFrom) {

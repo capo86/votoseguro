@@ -2,6 +2,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { create } from "zustand";
 import type { AppSection } from "../types/navigation";
 import type { Theme } from "../types/theme";
+import type { UserProfile } from "../types/userProfile";
 
 const THEME_STORAGE_KEY = "votoseguro-theme";
 
@@ -27,10 +28,12 @@ interface AppState {
   isSigningIn: boolean;
   loginError: string | null;
   openMenu: () => void;
+  profile: UserProfile | null;
   session: Session | null;
   setActiveSection: (section: AppSection) => void;
   setAuthLoading: (isLoading: boolean) => void;
   setLoginError: (error: string | null) => void;
+  setProfile: (profile: UserProfile | null) => void;
   setSession: (session: Session | null) => void;
   setSigningIn: (isSigningIn: boolean) => void;
   setTheme: (theme: Theme) => void;
@@ -47,10 +50,12 @@ export const useAppStore = create<AppState>((set) => ({
   isSigningIn: false,
   loginError: null,
   openMenu: () => set({ isMenuOpen: true }),
+  profile: null,
   session: null,
   setActiveSection: (activeSection) => set({ activeSection }),
   setAuthLoading: (isAuthLoading) => set({ isAuthLoading }),
   setLoginError: (loginError) => set({ loginError }),
+  setProfile: (profile) => set({ profile }),
   setSession: (session) =>
     set({
       session,

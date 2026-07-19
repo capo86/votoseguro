@@ -6,7 +6,7 @@ const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
 function requireSupabase() {
   if (!supabase) {
-    throw new Error("Supabase no esta configurado.");
+    throw new Error("El servicio no esta configurado.");
   }
 
   return supabase;

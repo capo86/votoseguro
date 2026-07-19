@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Eye, EyeOff, Loader2, LockKeyhole, LogIn, Mail, ShieldCheck } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, IdCard, Loader2, LockKeyhole, LogIn, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -12,19 +12,19 @@ interface LoginPageProps {
   isConfigured: boolean;
   isLoading: boolean;
   logoUrl: string;
-  onSignIn: (email: string, password: string) => Promise<void>;
+  onSignIn: (identifier: string, password: string) => Promise<void>;
   onToggleTheme: () => void;
   theme: Theme;
 }
 
 interface LoginFormValues {
-  email: string;
+  identifier: string;
   password: string;
 }
 
 const loginSchema = z.object({
-  email: z.string().email("Ingresa un correo valido."),
-  password: z.string().min(6, "La contrasena debe tener al menos 6 caracteres."),
+  identifier: z.string().min(5, "Ingresa tu cedula."),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres."),
 });
 
 function LoginPage({
@@ -43,14 +43,14 @@ function LoginPage({
     register,
   } = useForm<LoginFormValues>({
     defaultValues: {
-      email: "",
+      identifier: "",
       password: "",
     },
     resolver: zodResolver(loginSchema),
   });
 
   const onSubmit = async (values: LoginFormValues) => {
-    await onSignIn(values.email, values.password);
+    await onSignIn(values.identifier, values.password);
   };
 
   return (
@@ -62,7 +62,7 @@ function LoginPage({
           <div className="flex min-w-0 items-center gap-3">
             <img
               alt="PPC"
-              className="h-14 w-14 rounded-panel bg-white object-cover ring-2 ring-brand-orange"
+              className="h-14 w-14 rounded-panel bg-white object-contain p-1 ring-2 ring-brand-orange"
               src={logoUrl}
             />
             <div className="min-w-0">
@@ -86,7 +86,7 @@ function LoginPage({
               Equipo autorizado
             </p>
             <p className="mt-1 font-body text-lg font-black leading-tight text-brand-ink dark:text-white">
-              Ingresa con tu usuario y contraseña para accede.
+              Ingresa con tu cedula y contraseña para acceder.
             </p>
           </div>
         </div>
@@ -94,7 +94,7 @@ function LoginPage({
         {!isConfigured ? (
           <div className="mb-4 flex items-center gap-2 rounded-panel border border-red-300/50 bg-red-50 px-4 py-3 font-body text-sm font-bold text-red-800 dark:border-red-300/30 dark:bg-red-500/10 dark:text-red-100">
             <AlertCircle aria-hidden="true" size={18} strokeWidth={2.6} />
-            Falta configurar Supabase en las variables de entorno.
+            Falta configurar el acceso al sistema.
           </div>
         ) : null}
 
@@ -109,30 +109,30 @@ function LoginPage({
           <div className="space-y-2">
             <label
               className="block font-body text-xs font-black uppercase text-neutral-600 dark:text-orange-100/80"
-              htmlFor="email"
+              htmlFor="identifier"
             >
-              Usuario
+              Cedula
             </label>
             <div className="relative">
-              <Mail
+              <IdCard
                 aria-hidden="true"
                 className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-orange"
                 size={19}
                 strokeWidth={2.6}
               />
               <input
-                autoComplete="email"
+                autoComplete="username"
                 className="min-h-12 w-full rounded-panel border border-neutral-300 border-l-4 border-l-brand-orange bg-white px-4 py-3 pl-12 font-body text-base font-bold text-brand-ink outline-none transition placeholder:text-brand-muted focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 dark:bg-brand-field"
-                id="email"
-                inputMode="email"
-                placeholder="usuario@correo.com"
-                type="email"
-                {...register("email")}
+                id="identifier"
+                inputMode="numeric"
+                placeholder="Numero de cedula"
+                type="text"
+                {...register("identifier")}
               />
             </div>
-            {errors.email?.message ? (
+            {errors.identifier?.message ? (
               <p className="font-body text-sm font-semibold text-red-700 dark:text-red-200">
-                {errors.email.message}
+                {errors.identifier.message}
               </p>
             ) : null}
           </div>
@@ -142,7 +142,7 @@ function LoginPage({
               className="block font-body text-xs font-black uppercase text-neutral-600 dark:text-orange-100/80"
               htmlFor="password"
             >
-              Contrasena
+              contraseña
             </label>
             <div className="relative">
               <LockKeyhole
@@ -155,12 +155,12 @@ function LoginPage({
                 autoComplete="current-password"
                 className="min-h-12 w-full rounded-panel border border-neutral-300 border-l-4 border-l-brand-orange bg-white px-4 py-3 pl-12 pr-12 font-body text-base font-bold text-brand-ink outline-none transition placeholder:text-brand-muted focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 dark:bg-brand-field"
                 id="password"
-                placeholder="Tu contrasena"
+                placeholder="Tu contraseña"
                 type={showPassword ? "text" : "password"}
                 {...register("password")}
               />
               <button
-                aria-label={showPassword ? "Ocultar contrasena" : "Mostrar contrasena"}
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
                 className="absolute right-2 top-1/2 grid min-h-9 w-9 -translate-y-1/2 place-items-center rounded-md text-neutral-500 transition hover:bg-neutral-100 hover:text-brand-orange focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-orange dark:hover:bg-black/10"
                 onClick={() => setShowPassword((currentValue) => !currentValue)}
                 type="button"

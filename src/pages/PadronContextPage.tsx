@@ -42,7 +42,7 @@ function PadronContextPage() {
         <StatusPanel
           icon={<Database aria-hidden="true" size={22} strokeWidth={2.7} />}
           label="Destino"
-          value="Supabase"
+          value="Base central"
         />
         <StatusPanel
           icon={<ShieldCheck aria-hidden="true" size={22} strokeWidth={2.7} />}

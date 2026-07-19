@@ -7,11 +7,17 @@ import {
   Loader2,
   RefreshCcw,
   Save,
-  Search,
   ShieldCheck,
   UserRound,
+  X,
 } from "lucide-react";
-import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import {
+  flexRender,
+  getCoreRowModel,
+  useReactTable,
+  type ColumnDef,
+} from "@tanstack/react-table";
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import CandidatoSelect from "../components/form/CandidatoSelect";
@@ -21,8 +27,10 @@ import PadronReadonlyFields from "../components/form/PadronReadonlyFields";
 import PhoneField from "../components/form/PhoneField";
 import Button from "../components/ui/Button";
 import TextInput from "../components/ui/TextInput";
+import { PARAGUAY_DEPARTMENTS, getParaguayCitiesByDepartment } from "../data/paraguayTerritories";
 import { usePadronLookup } from "../hooks/usePadronLookup";
 import { listarCandidatos } from "../lib/candidatosApi";
+import { listarUserProfiles } from "../lib/userProfilesApi";
 import {
   crearVotoSeguroSnapshot,
   listarVotoSeguroSnapshots,
@@ -30,6 +38,7 @@ import {
 } from "../lib/votoSeguroApi";
 import { useAppStore } from "../store/appStore";
 import type { Candidato } from "../types/candidato";
+import type { UserProfile } from "../types/userProfile";
 import type { RegistroVotanteFormValues } from "../types/votante";
 
 const registroSchema = z.object({
@@ -57,12 +66,26 @@ const emptyPadron = {
   zona: "",
 };
 
-const initialGridFilters = {
+const registroDefaultValues: RegistroVotanteFormValues = {
   candidatoId: "",
   cedula: "",
+  departamento: "",
+  distrito: "",
+  local: "",
+  nombreApellido: "",
+  telefono: "",
+  ubicacion: undefined,
+  zona: "",
+};
+
+const initialGridFilters = {
+  candidatoId: "",
+  ciudad: "",
+  departamento: "",
   dateFrom: "",
   dateTo: "",
-  onlyMine: false,
+  loadedBy: "",
+  localidad: "",
 };
 
 interface SuccessAlertState {
@@ -76,6 +99,7 @@ type GridFilters = typeof initialGridFilters;
 
 function RegistroVotantePage() {
   const padronLookup = usePadronLookup();
+  const profile = useAppStore((state) => state.profile);
   const user = useAppStore((state) => state.user);
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
   const [candidateFeedback, setCandidateFeedback] = useState<string | null>(null);
@@ -84,29 +108,23 @@ function RegistroVotantePage() {
   const [isLoadingCandidatos, setIsLoadingCandidatos] = useState(true);
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const [records, setRecords] = useState<VotoSeguroRecord[]>([]);
-  const [saveFeedback, setSaveFeedback] = useState("Sesion autenticada lista para guardar en Supabase.");
+  const [saveFeedback, setSaveFeedback] = useState("Sesion autenticada lista para guardar.");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [successAlert, setSuccessAlert] = useState<SuccessAlertState | null>(null);
+  const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
+
+  const isAdmin = profile?.role === "admin";
 
   const {
     formState: { errors, isSubmitting },
     handleSubmit,
     register,
+    reset: resetRegistroForm,
     setValue,
     trigger,
     watch,
   } = useForm<RegistroVotanteFormValues>({
-    defaultValues: {
-      candidatoId: "",
-      cedula: "",
-      departamento: "",
-      distrito: "",
-      local: "",
-      nombreApellido: "",
-      telefono: "",
-      ubicacion: undefined,
-      zona: "",
-    },
+    defaultValues: registroDefaultValues,
     mode: "onTouched",
     resolver: zodResolver(registroSchema),
   });
@@ -127,10 +145,12 @@ function RegistroVotantePage() {
       try {
         const data = await listarVotoSeguroSnapshots({
           candidatoId: filtersToApply.candidatoId || undefined,
-          cedula: filtersToApply.cedula || undefined,
+          ciudad: filtersToApply.ciudad || undefined,
+          departamento: filtersToApply.departamento || undefined,
           dateFrom: filtersToApply.dateFrom || undefined,
           dateTo: filtersToApply.dateTo || undefined,
-          loadedBy: filtersToApply.onlyMine ? user?.id : undefined,
+          loadedBy: isAdmin ? filtersToApply.loadedBy || undefined : user?.id,
+          loadedByLocalidad: isAdmin ? filtersToApply.localidad || undefined : undefined,
         });
         setRecords(data);
         setGridFeedback(data.length ? `${data.length} cargas encontradas.` : "No hay cargas con esos filtros.");
@@ -140,7 +160,7 @@ function RegistroVotantePage() {
         setIsLoadingRecords(false);
       }
     },
-    [user?.id],
+    [isAdmin, user?.id],
   );
 
   const markDirty = () => {
@@ -182,6 +202,35 @@ function RegistroVotantePage() {
   useEffect(() => {
     void loadVotoSeguroRecords(initialGridFilters);
   }, [loadVotoSeguroRecords]);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setUserProfiles([]);
+      return;
+    }
+
+    let isMounted = true;
+
+    async function loadUserProfiles() {
+      try {
+        const data = await listarUserProfiles();
+
+        if (isMounted) {
+          setUserProfiles(data);
+        }
+      } catch {
+        if (isMounted) {
+          setUserProfiles([]);
+        }
+      }
+    }
+
+    void loadUserProfiles();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAdmin]);
 
   useEffect(() => {
     if (!padronLookup.data) {
@@ -230,10 +279,11 @@ function RegistroVotantePage() {
   const handleFilterChange =
     (field: keyof GridFilters) =>
     (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-      if (field === "onlyMine") {
+      if (field === "departamento") {
         setGridFilters((currentFilters) => ({
           ...currentFilters,
-          onlyMine: (event.target as HTMLInputElement).checked,
+          ciudad: "",
+          departamento: event.target.value,
         }));
         return;
       }
@@ -267,18 +317,21 @@ function RegistroVotantePage() {
       const saved = await crearVotoSeguroSnapshot({
         candidato,
         padron: padronLookup.data,
+        profile,
         user,
         values,
       });
 
       setSaveStatus("saved");
-      setSaveFeedback(`Voto Seguro guardado en Supabase. ID ${saved.id}`);
       setSuccessAlert({
         candidatoNombre: candidato.nombreCandidato,
         createdAt: saved.created_at,
         id: saved.id,
         nombreApellido: values.nombreApellido,
       });
+      resetRegistroForm(registroDefaultValues);
+      padronLookup.reset();
+      setSaveFeedback("Carga guardada. Listo para registrar otro votante.");
       await loadVotoSeguroRecords(gridFilters);
     } catch (error) {
       setSaveStatus("idle");
@@ -288,7 +341,7 @@ function RegistroVotantePage() {
 
   return (
     <section className="space-y-4">
-      {successAlert ? <SuccessAlert alert={successAlert} onClose={() => setSuccessAlert(null)} /> : null}
+      {successAlert ? <SuccessModal alert={successAlert} onClose={() => setSuccessAlert(null)} /> : null}
 
       <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.88] p-4 shadow-panel backdrop-blur sm:p-5 lg:p-7 dark:border-brand-line dark:bg-neutral-900/[0.92]">
         <form className="space-y-5 sm:space-y-6" onSubmit={handleSubmit(onSubmit)}>
@@ -398,34 +451,65 @@ function RegistroVotantePage() {
         onRefresh={() => void loadVotoSeguroRecords(gridFilters)}
         onSubmitFilters={handleFilterSubmit}
         records={records}
+        isAdmin={isAdmin}
+        userProfiles={userProfiles}
       />
     </section>
   );
 }
 
-interface SuccessAlertProps {
+interface SuccessModalProps {
   alert: SuccessAlertState;
   onClose: () => void;
 }
 
-function SuccessAlert({ alert, onClose }: SuccessAlertProps) {
+function SuccessModal({ alert, onClose }: SuccessModalProps) {
   return (
-    <section
-      aria-live="polite"
-      className="voto-card overflow-hidden rounded-panel border border-emerald-300 bg-emerald-50 p-4 shadow-panel dark:border-emerald-300/30 dark:bg-emerald-500/10"
-      role="status"
+    <div
+      className="fixed inset-0 z-[80] grid place-items-end bg-brand-ink/70 p-3 backdrop-blur-sm sm:place-items-center sm:p-6"
     >
-      <div className="grid gap-4 sm:grid-cols-[auto_1fr_auto] sm:items-center">
-        <div className="grid h-16 w-16 place-items-center rounded-panel bg-emerald-600 text-white shadow-action">
-          <CheckCircle2 aria-hidden="true" size={34} strokeWidth={2.8} />
+      <button
+        aria-label="Cerrar confirmacion"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+        tabIndex={-1}
+        type="button"
+      />
+
+      <section
+        aria-labelledby="voto-seguro-modal-title"
+        aria-live="polite"
+        aria-modal="true"
+        className="relative w-full max-w-lg overflow-hidden rounded-panel border border-emerald-300 bg-white p-5 shadow-panel sm:p-6 dark:border-emerald-300/30 dark:bg-neutral-950"
+        role="dialog"
+      >
+        <button
+          aria-label="Cerrar modal"
+          className="absolute right-3 top-3 grid min-h-10 w-10 place-items-center rounded-panel border border-neutral-200 bg-white text-neutral-600 transition hover:border-emerald-500 hover:text-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 dark:border-brand-line dark:bg-white/[0.06] dark:text-orange-50/70"
+          onClick={onClose}
+          type="button"
+        >
+          <X aria-hidden="true" size={18} strokeWidth={2.8} />
+        </button>
+
+        <div className="flex items-start gap-4 pr-10">
+          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-panel bg-emerald-600 text-white shadow-action">
+            <CheckCircle2 aria-hidden="true" size={34} strokeWidth={2.8} />
+          </div>
+          <div className="min-w-0">
+            <p className="font-body text-xs font-black uppercase text-emerald-700 dark:text-emerald-200">
+              Carga confirmada
+            </p>
+            <h2
+              className="mt-1 font-display text-3xl leading-none text-brand-ink sm:text-4xl dark:text-white"
+              id="voto-seguro-modal-title"
+            >
+              Voto bien cargado
+            </h2>
+          </div>
         </div>
-        <div className="min-w-0">
-          <p className="font-body text-xs font-black uppercase text-emerald-700 dark:text-emerald-200">
-            Carga confirmada
-          </p>
-          <h2 className="mt-1 font-display text-3xl leading-none text-brand-ink dark:text-white">
-            Voto Seguro guardado
-          </h2>
+
+        <div className="mt-5 rounded-panel border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-300/20 dark:bg-emerald-500/10">
           <p className="mt-2 font-body text-sm font-bold text-emerald-900 dark:text-emerald-100">
             {alert.nombreApellido} - {alert.candidatoNombre}
           </p>
@@ -433,15 +517,26 @@ function SuccessAlert({ alert, onClose }: SuccessAlertProps) {
             {formatDate(alert.createdAt)} - ID {shortId(alert.id)}
           </p>
         </div>
-        <button
-          className="min-h-11 rounded-panel border border-emerald-700/30 bg-white px-4 py-2 font-body text-sm font-black uppercase text-emerald-900 transition hover:border-emerald-700 dark:bg-white/[0.08] dark:text-emerald-100"
-          onClick={onClose}
-          type="button"
-        >
-          Cerrar
-        </button>
-      </div>
-    </section>
+
+        <p className="mt-4 font-body text-sm font-semibold leading-relaxed text-neutral-600 dark:text-orange-50/70">
+          La carga quedo guardada y se actualizo la grilla de Voto Seguro.
+        </p>
+
+        <div className="mt-5 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+          <p className="font-body text-xs font-black uppercase text-neutral-500 dark:text-orange-100/[0.58]">
+            Puedes cerrar y continuar cargando.
+          </p>
+          <button
+            autoFocus
+            className="inline-flex min-h-12 items-center justify-center rounded-panel bg-emerald-600 px-5 py-3 font-body text-sm font-black uppercase text-white shadow-action transition hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
+            onClick={onClose}
+            type="button"
+          >
+            Entendido
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -449,25 +544,104 @@ interface VotoSeguroGridProps {
   candidatos: Candidato[];
   feedback: string;
   filters: GridFilters;
+  isAdmin: boolean;
   isLoading: boolean;
   onClearFilters: () => void;
   onFilterChange: (field: keyof GridFilters) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
   onRefresh: () => void;
   onSubmitFilters: (event: FormEvent<HTMLFormElement>) => void;
   records: VotoSeguroRecord[];
+  userProfiles: UserProfile[];
 }
 
 function VotoSeguroGrid({
   candidatos,
   feedback,
   filters,
+  isAdmin,
   isLoading,
   onClearFilters,
   onFilterChange,
   onRefresh,
   onSubmitFilters,
   records,
+  userProfiles,
 }: VotoSeguroGridProps) {
+  const cityOptions = getParaguayCitiesByDepartment(filters.departamento);
+
+  const columns = useMemo<ColumnDef<VotoSeguroRecord>[]>(
+    () => {
+      const visibleColumns: ColumnDef<VotoSeguroRecord>[] = [
+      {
+        accessorKey: "nombreApellido",
+        header: "Votante",
+        cell: ({ row }) => (
+          <div className="min-w-52">
+            <p className="font-display text-lg leading-tight text-brand-ink dark:text-white">
+              {row.original.nombreApellido}
+            </p>
+            <p className="mt-1 font-body text-xs font-black uppercase text-brand-orange">
+              Cedula {row.original.cedula} - {row.original.telefono}
+            </p>
+          </div>
+        ),
+      },
+      ...(isAdmin
+        ? [
+            {
+              id: "loadedBy",
+              header: "Usuario",
+              cell: ({ row }) => loadedByLabel(row.original),
+            } satisfies ColumnDef<VotoSeguroRecord>,
+          ]
+        : []),
+      {
+        accessorKey: "candidatoNombre",
+        header: "Candidato",
+        cell: ({ row }) => (
+          <span className="font-body text-sm font-black text-brand-ink dark:text-white">
+            {candidateLabel(row.original)}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "departamento",
+        header: "Departamento",
+        cell: ({ row }) => row.original.departamento || "-",
+      },
+      {
+        accessorKey: "distrito",
+        header: "Ciudad",
+        cell: ({ row }) => row.original.distrito || "-",
+      },
+      {
+        id: "local",
+        header: "Local",
+        cell: ({ row }) => row.original.localVotacion || row.original.local || "-",
+      },
+      {
+        id: "mesaOrden",
+        header: "Mesa / Orden",
+        cell: ({ row }) => mesaOrdenLabel(row.original),
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Carga",
+        cell: ({ row }) => formatDate(row.original.createdAt),
+      },
+      ];
+
+      return visibleColumns;
+    },
+    [isAdmin],
+  );
+
+  const table = useReactTable({
+    columns,
+    data: records,
+    getCoreRowModel: getCoreRowModel(),
+  });
+
   return (
     <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.88] p-4 shadow-panel backdrop-blur sm:p-5 lg:p-7 dark:border-brand-line dark:bg-neutral-900/[0.92]">
       <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
@@ -490,21 +664,71 @@ function VotoSeguroGrid({
         </button>
       </div>
 
-      <form className="mt-5 grid gap-3 lg:grid-cols-[1fr_1fr_0.85fr_0.85fr_auto]" onSubmit={onSubmitFilters}>
-        <FilterField label="Cedula">
-          <Search
-            aria-hidden="true"
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-orange"
-            size={17}
-            strokeWidth={2.6}
-          />
-          <input
-            className={filterInputClass("pl-10")}
-            inputMode="numeric"
-            onChange={onFilterChange("cedula")}
-            placeholder="Buscar cedula"
-            value={filters.cedula}
-          />
+      <form className="mt-5 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_0.85fr_0.85fr_auto]" onSubmit={onSubmitFilters}>
+        {isAdmin ? (
+          <>
+            <FilterField label="Usuario">
+              <select
+                className={filterInputClass()}
+                onChange={onFilterChange("loadedBy")}
+                value={filters.loadedBy}
+              >
+                <option value="">Todos</option>
+                {userProfiles.map((userProfile) => (
+                  <option key={userProfile.id} value={userProfile.authUserId}>
+                    {userProfile.nombreApellido} - {userProfile.cedula}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+
+            <FilterField label="Localidad">
+              <input
+                className={filterInputClass()}
+                onChange={onFilterChange("localidad")}
+                placeholder="Filtrar localidad"
+                value={filters.localidad}
+              />
+            </FilterField>
+          </>
+        ) : (
+          <div className="flex min-h-12 items-center gap-2 rounded-panel border border-emerald-300 bg-emerald-50 px-3 py-2 font-body text-sm font-black uppercase text-emerald-800 dark:border-emerald-300/30 dark:bg-emerald-500/10 dark:text-emerald-100">
+            <ShieldCheck aria-hidden="true" size={16} strokeWidth={2.7} />
+            Mis cargas
+          </div>
+        )}
+
+        <FilterField label="Departamento">
+          <select
+            className={filterInputClass()}
+            onChange={onFilterChange("departamento")}
+            value={filters.departamento}
+          >
+            <option value="">Todos</option>
+            {PARAGUAY_DEPARTMENTS.map((department) => (
+              <option key={department.code} value={department.name}>
+                {department.name}
+              </option>
+            ))}
+          </select>
+        </FilterField>
+
+        <FilterField label="Ciudad">
+          <select
+            className={filterInputClass()}
+            disabled={!filters.departamento}
+            onChange={onFilterChange("ciudad")}
+            value={filters.ciudad}
+          >
+            <option value="">
+              {filters.departamento ? "Todas" : "Selecciona departamento"}
+            </option>
+            {cityOptions.map((city) => (
+              <option key={city} value={city}>
+                {city}
+              </option>
+            ))}
+          </select>
         </FilterField>
 
         <FilterField label="Candidato">
@@ -552,16 +776,7 @@ function VotoSeguroGrid({
           />
         </FilterField>
 
-        <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto] lg:grid-cols-1">
-          <label className="flex min-h-12 items-center gap-3 rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-sm font-black uppercase text-brand-ink dark:border-brand-line dark:bg-brand-field dark:text-white">
-            <input
-              checked={filters.onlyMine}
-              className="h-4 w-4 accent-brand-orange"
-              onChange={onFilterChange("onlyMine")}
-              type="checkbox"
-            />
-            Mis cargas
-          </label>
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto] lg:grid-cols-1">
           <button
             className="inline-flex min-h-12 items-center justify-center gap-2 rounded-panel bg-brand-orange px-4 py-2 font-body text-sm font-black uppercase text-brand-ink transition hover:bg-orange-500"
             type="submit"
@@ -579,7 +794,7 @@ function VotoSeguroGrid({
         </div>
       </form>
 
-      <div className="mt-5 grid gap-3">
+      <div className="mt-5">
         {isLoading ? (
           <div className="inline-flex min-h-20 items-center gap-3 rounded-panel border border-neutral-200 bg-white/70 p-4 font-body font-black text-brand-ink dark:border-brand-line dark:bg-black/[0.16] dark:text-white">
             <Loader2 aria-hidden="true" className="animate-spin text-brand-orange" size={22} />
@@ -590,7 +805,48 @@ function VotoSeguroGrid({
             No hay registros para mostrar.
           </div>
         ) : (
-          records.map((record) => <VotoSeguroCard key={record.id} record={record} />)
+          <>
+            <div className="grid gap-3 lg:hidden">
+              {table.getRowModel().rows.map((row) => (
+                <VotoSeguroCard key={row.id} record={row.original} />
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto rounded-panel border border-neutral-200 bg-white/75 dark:border-brand-line dark:bg-black/[0.16] lg:block">
+              <table className="min-w-full border-collapse text-left font-body text-sm">
+                <thead className="bg-neutral-100 text-[0.68rem] font-black uppercase text-neutral-500 dark:bg-white/[0.05] dark:text-orange-100/[0.58]">
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => (
+                        <th className="border-b border-neutral-200 px-4 py-3 dark:border-brand-line" key={header.id}>
+                          {header.isPlaceholder
+                            ? null
+                            : flexRender(header.column.columnDef.header, header.getContext())}
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {table.getRowModel().rows.map((row) => (
+                    <tr
+                      className="border-b border-neutral-200 last:border-0 dark:border-brand-line"
+                      key={row.id}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <td
+                          className="px-4 py-3 align-top font-semibold text-neutral-700 dark:text-orange-50/80"
+                          key={cell.id}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
     </section>
@@ -627,7 +883,7 @@ function VotoSeguroCard({ record }: VotoSeguroCardProps) {
       </div>
 
       <p className="mt-4 font-body text-xs font-black uppercase text-neutral-500 dark:text-orange-100/[0.58]">
-        {formatDate(record.createdAt)} - {record.loadedByEmail || "Usuario"}
+        {formatDate(record.createdAt)} - {loadedByLabel(record)}
       </p>
     </article>
   );
@@ -667,7 +923,7 @@ function FilterField({ children, label }: FilterFieldProps) {
 
 function filterInputClass(extra = "") {
   return [
-    "min-h-12 w-full rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-base font-black text-brand-ink outline-none transition focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 dark:bg-brand-field",
+    "min-h-12 w-full rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-base font-black text-brand-ink outline-none transition focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500 dark:bg-brand-field dark:disabled:bg-white/[0.06] dark:disabled:text-orange-50/45",
     extra,
   ].join(" ");
 }
@@ -685,6 +941,13 @@ function mesaOrdenLabel(record: VotoSeguroRecord) {
   const mesa = record.mesa || "-";
   const orden = record.orden || "-";
   return `Mesa ${mesa} - Orden ${orden}`;
+}
+
+function loadedByLabel(record: VotoSeguroRecord) {
+  const userName = record.loadedByNombre || "Usuario";
+  const locality = record.loadedByLocalidad ? ` - ${record.loadedByLocalidad}` : "";
+
+  return `${userName}${locality}`;
 }
 
 function formatDate(value?: string) {

@@ -34,7 +34,7 @@ const CANDIDATO_COLUMNS =
 
 function requireSupabase() {
   if (!supabase) {
-    throw new Error("Supabase no esta configurado.");
+    throw new Error("El servicio no esta configurado.");
   }
 
   return supabase;

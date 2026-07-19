@@ -1,1 +1,1 @@
-export type AppSection = "padron" | "votoseguro" | "candidatos";
+export type AppSection = "padron" | "votoseguro" | "candidatos" | "usuarios";

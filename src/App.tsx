@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { lazy, Suspense } from "react";
-import logoUrl from "../logo.jpg";
+import logoUrl from "../logo ppc oficial.png";
 import LoginPage from "./components/auth/LoginPage";
 import AppShell from "./components/layout/AppShell";
 import { useAuth } from "./hooks/useAuth";
@@ -10,6 +10,7 @@ import { useAppStore } from "./store/appStore";
 const CandidatosPage = lazy(() => import("./pages/CandidatosPage"));
 const PadronContextPage = lazy(() => import("./pages/PadronContextPage"));
 const RegistroVotantePage = lazy(() => import("./pages/RegistroVotantePage"));
+const UsuariosPage = lazy(() => import("./pages/UsuariosPage"));
 
 function SectionFallback() {
   return (
@@ -33,11 +34,11 @@ function App() {
   const setLoginError = useAppStore((state) => state.setLoginError);
   const setSigningIn = useAppStore((state) => state.setSigningIn);
 
-  const handleSignIn = async (email: string, password: string) => {
+  const handleSignIn = async (identifier: string, password: string) => {
     setSigningIn(true);
     setLoginError(null);
 
-    const { error } = await auth.signIn({ email, password });
+    const { error } = await auth.signIn({ identifier, password });
 
     if (error) {
       setLoginError(error);
@@ -53,6 +54,10 @@ function App() {
 
     if (activeSection === "candidatos") {
       return <CandidatosPage />;
+    }
+
+    if (activeSection === "usuarios" && auth.isAdmin) {
+      return <UsuariosPage />;
     }
 
     return <PadronContextPage />;
@@ -93,6 +98,7 @@ function App() {
       onSignOut={auth.signOut}
       onToggleMenu={openMenu}
       onToggleTheme={themeController.toggleTheme}
+      profile={auth.profile}
       theme={themeController.theme}
       user={auth.user}
     >

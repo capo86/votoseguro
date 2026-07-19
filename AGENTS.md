@@ -12,6 +12,7 @@ Contextos principales:
 - **Candidatos**: ABM de candidatos. El dato principal es `nombre_candidato`; `numero_lista`, `localidad`, `departamento` y `ciudad` son datos secundarios de identificacion territorial.
 - **Voto Seguro**: carga operativa del votante. Desde aca se consulta o completa la informacion del padron, telefono, ubicacion y candidato asociado.
 - **Padron**: contexto de migracion/importacion. Queda reservado para tablas fuente DBF del padron de Paraguay y futuras tablas normalizadas de departamentos, ciudades, zonas y locales.
+- **Usuarios**: administracion operativa del equipo. El usuario ingresa con cedula + contraseña; Auth usa un email tecnico oculto generado desde la cedula.
 
 No tratar "lista" como entidad principal. La lista ayuda a identificar al candidato por localidad, pero la UI y el modelo deben dar preponderancia al candidato.
 
@@ -120,6 +121,15 @@ Mantener RLS habilitado y politicas restrictivas para escritura.
 ## 7. Supabase Auth y Storage
 
 - Auth se usa para usuarios del equipo.
+- La UI nunca muestra correos tecnicos ni menciones internas del proveedor.
+- El login visible es `cedula + contraseña`. Internamente se transforma a `{cedula}@votoseguro.local`.
+- La tabla `user_profiles` vincula Auth con cedula, datos del padron, territorio, `role` y `estado`.
+- Roles iniciales: `admin` y `referente`.
+- Estados iniciales: `activo` e `inactivo`.
+- `admin` administra usuarios y candidatos, y ve todas las cargas de Voto Seguro.
+- `referente` carga Voto Seguro y ve solo sus propias cargas.
+- La Edge Function `admin-users` crea usuarios Auth y perfiles. Debe ejecutarse con `SUPABASE_SERVICE_ROLE_KEY` solo dentro de Supabase Functions o entorno backend seguro.
+- El bootstrap del primer admin se hace con `scripts/bootstrap-current-admin.sql`; no hardcodear cedulas, UUIDs ni secretos en migraciones.
 - Storage bucket de fotos de candidatos: `candidate-photos`.
 - El frontend solo usa URL y publishable key.
 - Service role, secret key, access tokens y passwords nunca van en frontend ni Vercel como `VITE_*`.
@@ -135,6 +145,7 @@ VITE_PADRON_API_URL=
 ```
 
 En Vercel configurar solo variables necesarias para cliente con prefijo `VITE_`.
+No configurar `SUPABASE_SERVICE_ROLE_KEY` en Vercel para esta app cliente. Las credenciales elevadas pertenecen a Supabase Edge Functions.
 
 ## 9. Padron
 

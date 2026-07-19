@@ -3,7 +3,7 @@ import {
   LogOut,
   Menu,
   PanelLeftClose,
-  ShieldCheck,
+  UserCog,
   UserRound,
   UsersRound,
   Vote,
@@ -12,6 +12,7 @@ import type { User } from "@supabase/supabase-js";
 import type { ReactNode } from "react";
 import type { AppSection } from "../../types/navigation";
 import type { Theme } from "../../types/theme";
+import type { UserProfile } from "../../types/userProfile";
 import ThemeToggle from "./ThemeToggle";
 
 interface AppShellProps {
@@ -24,6 +25,7 @@ interface AppShellProps {
   onToggleTheme: () => void;
   isMenuOpen: boolean;
   onCloseMenu: () => void;
+  profile: UserProfile | null;
   theme: Theme;
   user: User | null;
 }
@@ -44,7 +46,14 @@ const navItems = [
     label: "Candidatos",
     icon: UsersRound,
   },
+  {
+    adminOnly: true,
+    id: "usuarios",
+    label: "Usuarios",
+    icon: UserCog,
+  },
 ] satisfies Array<{
+  adminOnly?: boolean;
   id: AppSection;
   label: string;
   icon: typeof BarChart3;
@@ -60,10 +69,14 @@ function AppShell({
   onSignOut,
   onToggleMenu,
   onToggleTheme,
+  profile,
   theme,
   user,
 }: AppShellProps) {
-  const userLabel = user?.email ?? "Usuario activo";
+  const isAdmin = profile?.role === "admin";
+  const userLabel = profile?.nombreApellido ?? "Usuario activo";
+  const roleLabel = profile?.role === "admin" ? "Admin" : "Referente";
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || isAdmin);
 
   const sidebar = (
     <div className="flex h-full flex-col">
@@ -71,7 +84,7 @@ function AppShell({
         <div className="flex min-w-0 items-center gap-3">
           <img
             alt="PPC"
-            className="h-12 w-12 rounded-panel bg-white object-cover ring-2 ring-brand-orange"
+            className="h-12 w-12 rounded-panel bg-white object-contain p-1 ring-2 ring-brand-orange"
             src={logoUrl}
           />
           <div className="min-w-0">
@@ -94,7 +107,7 @@ function AppShell({
       </div>
 
       <nav aria-label="Navegacion principal" className="grid gap-2 p-3">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeSection === item.id;
 
@@ -130,6 +143,9 @@ function AppShell({
             <p className="truncate font-body text-sm font-black text-brand-ink dark:text-white">
               {userLabel}
             </p>
+            <p className="mt-0.5 font-body text-[0.68rem] font-black uppercase text-brand-orange">
+              {roleLabel}
+            </p>
           </div>
         </div>
         <button
@@ -160,7 +176,11 @@ function AppShell({
           </button>
 
           <div className="flex min-w-0 items-center gap-2">
-            <ShieldCheck aria-hidden="true" className="text-brand-orange" size={20} strokeWidth={2.6} />
+            <img
+              alt="PPC"
+              className="h-9 w-9 shrink-0 rounded-panel bg-white object-contain p-1 ring-1 ring-brand-orange/70"
+              src={logoUrl}
+            />
             <span className="truncate font-display text-lg text-brand-ink dark:text-white">
               VotoSeguro
             </span>
@@ -192,11 +212,18 @@ function AppShell({
 
       <div className="relative z-10 lg:ml-72">
         <div className="hidden border-b border-neutral-200 bg-brand-field/[0.84] px-8 py-4 backdrop-blur-xl dark:border-brand-line dark:bg-brand-ink/[0.82] lg:flex lg:items-center lg:justify-between">
-          <div>
-            <p className="font-body text-xs font-black uppercase text-brand-orange">
-              Panel de gestion
-            </p>
-            <h1 className="font-display text-2xl text-brand-ink dark:text-white">VotoSeguro PPC</h1>
+          <div className="flex min-w-0 items-center gap-3">
+            <img
+              alt="PPC"
+              className="h-11 w-11 rounded-panel bg-white object-contain p-1 ring-2 ring-brand-orange"
+              src={logoUrl}
+            />
+            <div className="min-w-0">
+              <p className="font-body text-xs font-black uppercase text-brand-orange">
+                Panel de gestion
+              </p>
+              <h1 className="truncate font-display text-2xl text-brand-ink dark:text-white">VotoSeguro PPC</h1>
+            </div>
           </div>
           <ThemeToggle onToggle={onToggleTheme} theme={theme} />
         </div>

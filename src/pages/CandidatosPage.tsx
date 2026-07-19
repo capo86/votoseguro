@@ -19,6 +19,12 @@ import {
   type CandidatoFormValues,
 } from "../lib/candidatosApi";
 import { uploadCandidatePhoto } from "../lib/candidatePhotosApi";
+import {
+  PARAGUAY_DEPARTMENTS,
+  findParaguayCityName,
+  findParaguayDepartmentName,
+  getParaguayCitiesByDepartment,
+} from "../data/paraguayTerritories";
 import { useAppStore } from "../store/appStore";
 import type { Candidato } from "../types/candidato";
 
@@ -34,16 +40,18 @@ const initialForm: CandidatoFormValues = {
 };
 
 function CandidatosPage() {
-  const user = useAppStore((state) => state.user);
+  const profile = useAppStore((state) => state.profile);
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
   const [form, setForm] = useState<CandidatoFormValues>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [feedback, setFeedback] = useState("Candidatos conectado a Supabase.");
+  const [feedback, setFeedback] = useState("Modulo de candidatos listo.");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
-  const createdByUser = user?.email ?? "usuario activo";
+  const isAdmin = profile?.role === "admin";
+  const createdByUser = profile?.nombreApellido ?? "usuario activo";
+  const cityOptions = getParaguayCitiesByDepartment(form.departamento);
 
   useEffect(() => {
     let isMounted = true;
@@ -56,7 +64,7 @@ function CandidatosPage() {
 
         if (isMounted) {
           setCandidatos(data);
-          setFeedback(data.length ? "Candidatos cargados desde Supabase." : "Sin candidatos cargados.");
+          setFeedback(data.length ? "Candidatos cargados." : "Sin candidatos cargados.");
         }
       } catch (error) {
         if (isMounted) {
@@ -78,9 +86,10 @@ function CandidatosPage() {
 
   const handleChange =
     (field: keyof CandidatoFormValues) =>
-    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
       setForm((currentForm) => ({
         ...currentForm,
+        ...(field === "departamento" ? { ciudad: "" } : {}),
         [field]: event.target.value,
       }));
       setFeedback("Modificando candidato.");
@@ -94,6 +103,11 @@ function CandidatosPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (!isAdmin) {
+      setFeedback("Solo administradores pueden guardar candidatos.");
+      return;
+    }
 
     if (!form.nombreCandidato.trim() || !form.numeroLista.trim()) {
       setFeedback("Completa nombre del candidato y numero de lista para guardar.");
@@ -110,11 +124,11 @@ function CandidatosPage() {
             candidato.id === editingId ? updated : candidato,
           ),
         );
-        setFeedback("Candidato actualizado en Supabase.");
+        setFeedback("Candidato actualizado.");
       } else {
         const created = await crearCandidato(form, createdByUser);
         setCandidatos((currentCandidatos) => [created, ...currentCandidatos]);
-        setFeedback("Candidato creado en Supabase.");
+        setFeedback("Candidato creado.");
       }
 
       resetForm();
@@ -130,6 +144,11 @@ function CandidatosPage() {
     event.target.value = "";
 
     if (!file) {
+      return;
+    }
+
+    if (!isAdmin) {
+      setFeedback("Solo administradores pueden subir fotos.");
       return;
     }
 
@@ -151,11 +170,19 @@ function CandidatosPage() {
   };
 
   const handleEdit = (candidato: Candidato) => {
+    if (!isAdmin) {
+      setFeedback("Solo administradores pueden editar candidatos.");
+      return;
+    }
+
+    const departamento = findParaguayDepartmentName(candidato.departamento) ?? "";
+    const ciudad = findParaguayCityName(departamento, candidato.ciudad) ?? "";
+
     setEditingId(candidato.id);
     setForm({
       cargo: candidato.cargo ?? "",
-      ciudad: candidato.ciudad ?? "",
-      departamento: candidato.departamento ?? "",
+      ciudad,
+      departamento,
       fotoUrl: candidato.fotoUrl ?? "",
       localidad: candidato.localidad ?? "",
       nombreCandidato: candidato.nombreCandidato,
@@ -166,6 +193,11 @@ function CandidatosPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!isAdmin) {
+      setFeedback("Solo administradores pueden eliminar candidatos.");
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -178,7 +210,7 @@ function CandidatosPage() {
         resetForm();
       }
 
-      setFeedback("Candidato eliminado de Supabase.");
+      setFeedback("Candidato eliminado.");
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "No se pudo eliminar candidato.");
     } finally {
@@ -207,7 +239,8 @@ function CandidatosPage() {
         </div>
       </section>
 
-      <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.9] p-4 shadow-panel backdrop-blur sm:p-6 dark:border-brand-line dark:bg-neutral-900/[0.92]">
+      {isAdmin ? (
+        <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.9] p-4 shadow-panel backdrop-blur sm:p-6 dark:border-brand-line dark:bg-neutral-900/[0.92]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="font-body text-xs font-black uppercase text-brand-orange">Carga</p>
@@ -246,16 +279,19 @@ function CandidatosPage() {
             placeholder="Intendencia, concejalia..."
             value={form.cargo}
           />
-          <Field
+          <SelectField
             label="Departamento"
             onChange={handleChange("departamento")}
-            placeholder="Central"
+            options={PARAGUAY_DEPARTMENTS.map((department) => department.name)}
+            placeholder="Seleccionar departamento"
             value={form.departamento}
           />
-          <Field
+          <SelectField
+            disabled={!form.departamento}
             label="Ciudad"
             onChange={handleChange("ciudad")}
-            placeholder="Asuncion"
+            options={cityOptions}
+            placeholder={form.departamento ? "Seleccionar ciudad" : "Selecciona departamento"}
             value={form.ciudad}
           />
           <Field
@@ -340,7 +376,18 @@ function CandidatosPage() {
             </span>
           </div>
         </form>
-      </section>
+        </section>
+      ) : (
+        <section className="voto-card rounded-panel border border-brand-orange/40 bg-brand-orange/10 p-4 shadow-panel backdrop-blur sm:p-6 dark:border-brand-line">
+          <p className="font-body text-xs font-black uppercase text-brand-orange">Solo lectura</p>
+          <h3 className="mt-1 font-display text-2xl text-brand-ink dark:text-white">
+            Candidatos disponibles
+          </h3>
+          <p className="mt-2 font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
+            Tu perfil permite consultar candidatos. La administracion queda reservada para administradores.
+          </p>
+        </section>
+      )}
 
       <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.9] p-4 shadow-panel backdrop-blur sm:p-6 dark:border-brand-line dark:bg-neutral-900/[0.92]">
         <div className="flex items-center justify-between gap-3">
@@ -361,7 +408,7 @@ function CandidatosPage() {
             </div>
           ) : candidatos.length === 0 ? (
             <div className="rounded-panel border border-neutral-200 bg-white/70 p-4 font-body font-black text-neutral-600 dark:border-brand-line dark:bg-black/[0.16] dark:text-orange-50/70">
-              Todavia no hay candidatos. Carga el primero arriba.
+              {isAdmin ? "Todavia no hay candidatos. Carga el primero arriba." : "Todavia no hay candidatos cargados."}
             </div>
           ) : (
             candidatos.map((candidato) => (
@@ -396,7 +443,8 @@ function CandidatosPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  {isAdmin ? (
+                    <div className="flex gap-2">
                     <button
                       aria-label={`Editar ${candidato.nombreCandidato}`}
                       className="rounded-panel border border-neutral-300 bg-white p-2 text-brand-ink transition hover:border-brand-orange hover:text-brand-orange dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
@@ -413,7 +461,8 @@ function CandidatosPage() {
                     >
                       <Trash2 aria-hidden="true" size={16} strokeWidth={2.6} />
                     </button>
-                  </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="mt-3 grid gap-2 text-sm text-neutral-700 dark:text-orange-50/80 sm:grid-cols-2">
@@ -454,6 +503,16 @@ interface FieldProps {
   withAccent?: boolean;
 }
 
+interface SelectFieldProps {
+  className?: string;
+  disabled?: boolean;
+  label: string;
+  onChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+  options: readonly string[];
+  placeholder: string;
+  value: string;
+}
+
 function Field({ className = "", label, onChange, placeholder, value, withAccent }: FieldProps) {
   return (
     <label className={`space-y-2 text-sm font-semibold text-neutral-700 dark:text-orange-50/80 ${className}`}>
@@ -468,6 +527,35 @@ function Field({ className = "", label, onChange, placeholder, value, withAccent
         type="text"
         value={value}
       />
+    </label>
+  );
+}
+
+function SelectField({
+  className = "",
+  disabled = false,
+  label,
+  onChange,
+  options,
+  placeholder,
+  value,
+}: SelectFieldProps) {
+  return (
+    <label className={`space-y-2 text-sm font-semibold text-neutral-700 dark:text-orange-50/80 ${className}`}>
+      <span>{label}</span>
+      <select
+        className="min-h-11 w-full rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-base font-black text-brand-ink outline-none focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-500 dark:bg-brand-field dark:disabled:bg-white/[0.06] dark:disabled:text-orange-50/45"
+        disabled={disabled}
+        onChange={onChange}
+        value={value}
+      >
+        <option value="">{placeholder}</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }
