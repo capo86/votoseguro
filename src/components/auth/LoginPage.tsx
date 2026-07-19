@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import type { Theme } from "../../types/theme";
 import Button from "../ui/Button";
+import AppFooter from "../layout/AppFooter";
 import ThemeToggle from "../layout/ThemeToggle";
 
 interface LoginPageProps {
@@ -54,10 +55,10 @@ function LoginPage({
   };
 
   return (
-    <main className="voto-page grid min-h-screen place-items-center bg-brand-field px-3 py-5 text-brand-ink dark:bg-brand-ink dark:text-white">
+    <main className="voto-page grid min-h-screen grid-rows-[1fr_auto] bg-brand-field px-3 py-5 text-brand-ink dark:bg-brand-ink dark:text-white">
       <div className="voto-sunburst" aria-hidden="true" />
 
-      <section className="voto-card relative z-10 w-full max-w-md rounded-panel border border-neutral-200 bg-white/[0.9] p-4 shadow-panel backdrop-blur sm:p-6 dark:border-brand-line dark:bg-neutral-900/[0.92]">
+      <section className="voto-card relative z-10 mx-auto w-full max-w-md self-center rounded-panel border border-neutral-200 bg-white/[0.9] p-4 shadow-panel backdrop-blur sm:p-6 dark:border-brand-line dark:bg-neutral-900/[0.92]">
         <div className="mb-6 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <img
@@ -196,6 +197,8 @@ function LoginPage({
           </Button>
         </form>
       </section>
+
+      <AppFooter />
     </main>
   );
 }

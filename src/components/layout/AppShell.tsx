@@ -15,6 +15,7 @@ import type { ReactNode } from "react";
 import type { AppSection } from "../../types/navigation";
 import type { Theme } from "../../types/theme";
 import type { UserProfile } from "../../types/userProfile";
+import AppFooter from "./AppFooter";
 import ThemeToggle from "./ThemeToggle";
 
 interface AppShellProps {
@@ -36,7 +37,7 @@ const navItems = [
   {
     adminOnly: true,
     id: "panel",
-    label: "Panel",
+    label: "Resumen",
     icon: LayoutDashboard,
   },
   {
@@ -228,7 +229,7 @@ function AppShell({
             />
             <div className="min-w-0">
               <p className="font-body text-xs font-black uppercase text-brand-orange">
-                Panel de gestion
+                Resumen de gestion
               </p>
               <h1 className="truncate font-display text-2xl text-brand-ink dark:text-white">VotoSeguro PPC</h1>
             </div>
@@ -239,6 +240,7 @@ function AppShell({
         <div className="mx-auto w-full max-w-6xl px-3 py-4 sm:px-6 lg:px-8 lg:py-6">
           {children}
         </div>
+        <AppFooter />
       </div>
     </main>
   );

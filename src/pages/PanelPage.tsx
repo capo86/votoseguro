@@ -25,7 +25,7 @@ interface DepartmentSummary {
 }
 
 function PanelPage() {
-  const [feedback, setFeedback] = useState("Panel administrativo listo.");
+  const [feedback, setFeedback] = useState("Resumen administrativo listo.");
   const [isLoading, setIsLoading] = useState(true);
   const [territoryRows, setTerritoryRows] = useState<DashboardTerritoryRow[]>([]);
   const [topUsers, setTopUsers] = useState<DashboardUserRow[]>([]);
@@ -131,7 +131,7 @@ function PanelPage() {
           : "Todavia no hay cargas de Voto Seguro.",
       );
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "No se pudo cargar el panel.");
+      setFeedback(error instanceof Error ? error.message : "No se pudo cargar el resumen.");
     } finally {
       setIsLoading(false);
     }
@@ -146,9 +146,9 @@ function PanelPage() {
       <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.9] p-4 shadow-panel backdrop-blur sm:p-6 dark:border-brand-line dark:bg-neutral-900/[0.92]">
         <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
           <div>
-            <p className="font-body text-xs font-black uppercase text-brand-orange">Panel</p>
+            <p className="font-body text-xs font-black uppercase text-brand-orange">Resumen</p>
             <h2 className="mt-1 font-display text-3xl leading-none text-brand-ink sm:text-4xl dark:text-white">
-              Dashboard administrativo
+              Resumen administrativo
             </h2>
             <p className="mt-2 max-w-2xl font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
               Seguimiento de Voto Seguro por territorio y rendimiento de carga por usuario.
@@ -209,7 +209,7 @@ function PanelPage() {
           {isLoading ? (
             <div className="inline-flex min-h-20 items-center gap-3 rounded-panel border border-neutral-200 bg-white/70 p-4 font-body font-black text-brand-ink dark:border-brand-line dark:bg-black/[0.16] dark:text-white">
               <Loader2 aria-hidden="true" className="animate-spin text-brand-orange" size={22} />
-              Cargando dashboard
+              Cargando resumen
             </div>
           ) : departmentSummaries.length === 0 ? (
             <div className="rounded-panel border border-neutral-200 bg-white/70 p-4 font-body font-black text-neutral-600 dark:border-brand-line dark:bg-black/[0.16] dark:text-orange-50/70">
