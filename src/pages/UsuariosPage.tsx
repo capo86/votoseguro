@@ -1,4 +1,7 @@
 import {
+  type ColumnDef,
+} from "@tanstack/react-table";
+import {
   AlertCircle,
   CheckCircle2,
   Edit3,
@@ -15,6 +18,8 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import Button from "../components/ui/Button";
+import DataGrid from "../components/ui/DataGrid";
+import SuccessModal, { type SuccessModalDetail } from "../components/ui/SuccessModal";
 import {
   PARAGUAY_DEPARTMENTS,
   findParaguayCityName,
@@ -63,6 +68,11 @@ function UsuariosPage() {
   const [padronData, setPadronData] = useState<PadronResponse | null>(null);
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [query, setQuery] = useState("");
+  const [successAlert, setSuccessAlert] = useState<{
+    details: SuccessModalDetail[];
+    summary: string;
+    title: string;
+  } | null>(null);
 
   const cityOptions = getParaguayCitiesByDepartment(form.departamento);
   const filteredProfiles = useMemo(() => {
@@ -86,6 +96,66 @@ function UsuariosPage() {
         .some((value) => value?.toLowerCase().includes(normalizedQuery)),
     );
   }, [profiles, query]);
+
+  const columns = useMemo<ColumnDef<UserProfile>[]>(
+    () => [
+      {
+        accessorKey: "nombreApellido",
+        header: "Usuario",
+        cell: ({ row }) => (
+          <div className="min-w-56">
+            <p className="font-display text-lg leading-tight text-brand-ink dark:text-white">
+              {row.original.nombreApellido}
+            </p>
+            <p className="mt-1 font-body text-xs font-black uppercase text-brand-orange">
+              Cedula {row.original.cedula}
+            </p>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "role",
+        header: "Perfil",
+        cell: ({ row }) => (row.original.role === "admin" ? "Admin" : "Referente"),
+      },
+      {
+        accessorKey: "estado",
+        header: "Estado",
+        cell: ({ row }) => (row.original.estado === "activo" ? "Activo" : "Inactivo"),
+      },
+      {
+        id: "territorio",
+        header: "Territorio",
+        cell: ({ row }) => `${row.original.departamento} / ${row.original.ciudad}`,
+      },
+      {
+        accessorKey: "localidad",
+        header: "Localidad",
+        cell: ({ row }) => row.original.localidad || "-",
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Alta",
+        cell: ({ row }) => formatDate(row.original.createdAt),
+      },
+      {
+        id: "actions",
+        header: "Acciones",
+        cell: ({ row }) => (
+          <button
+            aria-label={`Editar ${row.original.nombreApellido}`}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-xs font-black uppercase text-brand-ink transition hover:border-brand-orange hover:text-brand-orange dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
+            onClick={() => handleEdit(row.original)}
+            type="button"
+          >
+            <Edit3 aria-hidden="true" size={15} strokeWidth={2.6} />
+            Editar
+          </button>
+        ),
+      },
+    ],
+    [],
+  );
 
   async function loadProfiles() {
     setIsLoading(true);
@@ -216,6 +286,17 @@ function UsuariosPage() {
           currentProfiles.map((profile) => (profile.id === updated.id ? updated : profile)),
         );
         setFeedback(form.password.trim() ? "Usuario actualizado y contraseña restablecida." : "Usuario actualizado.");
+        setSuccessAlert({
+          details: [
+            { label: "Usuario", value: updated.nombreApellido },
+            { label: "Perfil", value: updated.role === "admin" ? "Admin" : "Referente" },
+            { label: "Territorio", value: `${updated.departamento} / ${updated.ciudad}` },
+          ],
+          summary: form.password.trim()
+            ? "El usuario quedo actualizado y la contrasena fue restablecida."
+            : "El usuario quedo actualizado correctamente.",
+          title: "Usuario actualizado",
+        });
       } else {
         const created = await crearUserProfile({
           cedula: form.cedula,
@@ -228,6 +309,15 @@ function UsuariosPage() {
         });
         setProfiles((currentProfiles) => [created, ...currentProfiles]);
         setFeedback("Usuario creado.");
+        setSuccessAlert({
+          details: [
+            { label: "Usuario", value: created.nombreApellido },
+            { label: "Perfil", value: created.role === "admin" ? "Admin" : "Referente" },
+            { label: "Acceso", value: `Cedula ${created.cedula}` },
+          ],
+          summary: "El usuario quedo creado como perfil operativo activo.",
+          title: "Usuario creado",
+        });
       }
 
       resetForm();
@@ -241,6 +331,15 @@ function UsuariosPage() {
 
   return (
     <section className="space-y-4">
+      {successAlert ? (
+        <SuccessModal
+          details={successAlert.details}
+          onClose={() => setSuccessAlert(null)}
+          summary={successAlert.summary}
+          title={successAlert.title}
+        />
+      ) : null}
+
       <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.9] p-4 shadow-panel backdrop-blur sm:p-6 dark:border-brand-line dark:bg-neutral-900/[0.92]">
         <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
           <div>
@@ -431,59 +530,64 @@ function UsuariosPage() {
           />
         </div>
 
-        <div className="mt-5 grid gap-3">
-          {isLoading ? (
-            <div className="inline-flex min-h-20 items-center gap-3 rounded-panel border border-neutral-200 bg-white/70 p-4 font-body font-black text-brand-ink dark:border-brand-line dark:bg-black/[0.16] dark:text-white">
-              <Loader2 aria-hidden="true" className="animate-spin text-brand-orange" size={22} />
-              Cargando usuarios
-            </div>
-          ) : filteredProfiles.length === 0 ? (
-            <div className="rounded-panel border border-neutral-200 bg-white/70 p-4 font-body font-black text-neutral-600 dark:border-brand-line dark:bg-black/[0.16] dark:text-orange-50/70">
-              No hay usuarios para mostrar.
-            </div>
-          ) : (
-            filteredProfiles.map((profile) => (
-              <article
-                className="rounded-panel border border-neutral-200 bg-white/75 p-4 dark:border-brand-line dark:bg-black/[0.16]"
-                key={profile.id}
-              >
-                <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
-                  <div className="min-w-0">
-                    <p className="font-display text-xl leading-tight text-brand-ink dark:text-white">
-                      {profile.nombreApellido}
-                    </p>
-                    <p className="mt-1 font-body text-sm font-black uppercase text-brand-orange">
-                      Cedula {profile.cedula}
-                    </p>
-                  </div>
-                  <button
-                    aria-label={`Editar ${profile.nombreApellido}`}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-xs font-black uppercase text-brand-ink transition hover:border-brand-orange hover:text-brand-orange dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
-                    onClick={() => handleEdit(profile)}
-                    type="button"
-                  >
-                    <Edit3 aria-hidden="true" size={15} strokeWidth={2.6} />
-                    Editar
-                  </button>
-                </div>
-
-                <div className="mt-4 grid gap-3 text-sm text-neutral-700 dark:text-orange-50/80 md:grid-cols-2 xl:grid-cols-4">
-                  <Metric label="Perfil" value={profile.role === "admin" ? "Admin" : "Referente"} />
-                  <Metric label="Estado" value={profile.estado === "activo" ? "Activo" : "Inactivo"} />
-                  <Metric label="Territorio" value={`${profile.departamento} / ${profile.ciudad}`} />
-                  <Metric label="Localidad" value={profile.localidad || "-"} />
-                </div>
-
-                <p className="mt-4 inline-flex items-center gap-2 font-body text-xs font-black uppercase text-neutral-500 dark:text-orange-100/[0.58]">
-                  <ShieldCheck aria-hidden="true" size={14} strokeWidth={2.7} />
-                  Creado {formatDate(profile.createdAt)}
-                </p>
-              </article>
-            ))
-          )}
+        <div className="mt-5">
+          <DataGrid
+            columns={columns}
+            data={filteredProfiles}
+            emptyMessage="No hay usuarios para mostrar."
+            getRowKey={(profile) => profile.id}
+            isLoading={isLoading}
+            loadingMessage="Cargando usuarios"
+            renderMobileCard={(profile) => (
+              <UserProfileCard onEdit={handleEdit} profile={profile} />
+            )}
+          />
         </div>
       </section>
     </section>
+  );
+}
+
+interface UserProfileCardProps {
+  onEdit: (profile: UserProfile) => void;
+  profile: UserProfile;
+}
+
+function UserProfileCard({ onEdit, profile }: UserProfileCardProps) {
+  return (
+    <article className="rounded-panel border border-neutral-200 bg-white/75 p-4 dark:border-brand-line dark:bg-black/[0.16]">
+      <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
+        <div className="min-w-0">
+          <p className="font-display text-xl leading-tight text-brand-ink dark:text-white">
+            {profile.nombreApellido}
+          </p>
+          <p className="mt-1 font-body text-sm font-black uppercase text-brand-orange">
+            Cedula {profile.cedula}
+          </p>
+        </div>
+        <button
+          aria-label={`Editar ${profile.nombreApellido}`}
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-xs font-black uppercase text-brand-ink transition hover:border-brand-orange hover:text-brand-orange dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
+          onClick={() => onEdit(profile)}
+          type="button"
+        >
+          <Edit3 aria-hidden="true" size={15} strokeWidth={2.6} />
+          Editar
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-3 text-sm text-neutral-700 dark:text-orange-50/80 md:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Perfil" value={profile.role === "admin" ? "Admin" : "Referente"} />
+        <Metric label="Estado" value={profile.estado === "activo" ? "Activo" : "Inactivo"} />
+        <Metric label="Territorio" value={`${profile.departamento} / ${profile.ciudad}`} />
+        <Metric label="Localidad" value={profile.localidad || "-"} />
+      </div>
+
+      <p className="mt-4 inline-flex items-center gap-2 font-body text-xs font-black uppercase text-neutral-500 dark:text-orange-100/[0.58]">
+        <ShieldCheck aria-hidden="true" size={14} strokeWidth={2.7} />
+        Creado {formatDate(profile.createdAt)}
+      </p>
+    </article>
   );
 }
 

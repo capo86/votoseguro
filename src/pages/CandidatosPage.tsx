@@ -1,4 +1,7 @@
 import {
+  type ColumnDef,
+} from "@tanstack/react-table";
+import {
   Edit3,
   ImageUp,
   Loader2,
@@ -10,7 +13,9 @@ import {
   UsersRound,
   Vote,
 } from "lucide-react";
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import DataGrid from "../components/ui/DataGrid";
+import SuccessModal, { type SuccessModalDetail } from "../components/ui/SuccessModal";
 import {
   actualizarCandidato,
   crearCandidato,
@@ -25,6 +30,7 @@ import {
   findParaguayDepartmentName,
   getParaguayCitiesByDepartment,
 } from "../data/paraguayTerritories";
+import { filterCandidatosForProfile } from "../lib/candidateTerritory";
 import { useAppStore } from "../store/appStore";
 import type { Candidato } from "../types/candidato";
 
@@ -48,6 +54,11 @@ function CandidatosPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [successAlert, setSuccessAlert] = useState<{
+    details: SuccessModalDetail[];
+    summary: string;
+    title: string;
+  } | null>(null);
 
   const isAdmin = profile?.role === "admin";
   const createdByUser = profile?.nombreApellido ?? "usuario activo";
@@ -63,8 +74,15 @@ function CandidatosPage() {
         const data = await listarCandidatos();
 
         if (isMounted) {
-          setCandidatos(data);
-          setFeedback(data.length ? "Candidatos cargados." : "Sin candidatos cargados.");
+          const visibleCandidates = filterCandidatosForProfile(data, profile);
+          setCandidatos(visibleCandidates);
+          setFeedback(
+            visibleCandidates.length
+              ? isAdmin
+                ? "Candidatos cargados."
+                : "Candidatos de tu territorio cargados."
+              : "Sin candidatos disponibles.",
+          );
         }
       } catch (error) {
         if (isMounted) {
@@ -82,7 +100,7 @@ function CandidatosPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isAdmin, profile]);
 
   const handleChange =
     (field: keyof CandidatoFormValues) =>
@@ -125,10 +143,28 @@ function CandidatosPage() {
           ),
         );
         setFeedback("Candidato actualizado.");
+        setSuccessAlert({
+          details: [
+            { label: "Candidato", value: updated.nombreCandidato },
+            { label: "Lista", value: updated.numeroLista || "-" },
+            { label: "Territorio", value: `${updated.departamento || "-"} / ${updated.ciudad || "-"}` },
+          ],
+          summary: "El candidato quedo actualizado y disponible segun las reglas de territorio.",
+          title: "Candidato actualizado",
+        });
       } else {
         const created = await crearCandidato(form, createdByUser);
         setCandidatos((currentCandidatos) => [created, ...currentCandidatos]);
         setFeedback("Candidato creado.");
+        setSuccessAlert({
+          details: [
+            { label: "Candidato", value: created.nombreCandidato },
+            { label: "Lista", value: created.numeroLista || "-" },
+            { label: "Territorio", value: `${created.departamento || "-"} / ${created.ciudad || "-"}` },
+          ],
+          summary: "El candidato quedo cargado como activo para su territorio.",
+          title: "Candidato creado",
+        });
       }
 
       resetForm();
@@ -218,8 +254,103 @@ function CandidatosPage() {
     }
   };
 
+  const columns = useMemo<ColumnDef<Candidato>[]>(
+    () => [
+      {
+        accessorKey: "nombreCandidato",
+        header: "Candidato",
+        cell: ({ row }) => (
+          <div className="flex min-w-64 items-center gap-3">
+            <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-panel bg-brand-orange text-brand-ink">
+              {row.original.fotoUrl ? (
+                <img
+                  alt={row.original.nombreCandidato}
+                  className="h-full w-full object-cover"
+                  src={row.original.fotoUrl}
+                />
+              ) : (
+                <Vote aria-hidden="true" size={20} strokeWidth={2.8} />
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="font-display text-lg leading-tight text-brand-ink dark:text-white">
+                {row.original.nombreCandidato}
+              </p>
+              <p className="mt-1 font-body text-xs font-black uppercase text-brand-orange">
+                Lista {row.original.numeroLista || "-"}
+              </p>
+            </div>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "cargo",
+        header: "Cargo",
+        cell: ({ row }) => row.original.cargo || "-",
+      },
+      {
+        id: "territorio",
+        header: "Territorio",
+        cell: ({ row }) => `${row.original.departamento || "-"} / ${row.original.ciudad || "-"}`,
+      },
+      {
+        accessorKey: "localidad",
+        header: "Localidad",
+        cell: ({ row }) => row.original.localidad || "-",
+      },
+      {
+        accessorKey: "activo",
+        header: "Estado",
+        cell: ({ row }) => (row.original.activo ? "Activo" : "Inactivo"),
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Alta",
+        cell: ({ row }) => formatDate(row.original.createdAt),
+      },
+      ...(isAdmin
+        ? [
+            {
+              id: "actions",
+              header: "Acciones",
+              cell: ({ row }) => (
+                <div className="flex gap-2">
+                  <button
+                    aria-label={`Editar ${row.original.nombreCandidato}`}
+                    className="rounded-panel border border-neutral-300 bg-white p-2 text-brand-ink transition hover:border-brand-orange hover:text-brand-orange dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
+                    onClick={() => handleEdit(row.original)}
+                    type="button"
+                  >
+                    <Edit3 aria-hidden="true" size={16} strokeWidth={2.6} />
+                  </button>
+                  <button
+                    aria-label={`Eliminar ${row.original.nombreCandidato}`}
+                    className="rounded-panel border border-neutral-300 bg-white p-2 text-brand-ink transition hover:border-red-500 hover:text-red-500 dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
+                    onClick={() => handleDelete(row.original.id)}
+                    type="button"
+                  >
+                    <Trash2 aria-hidden="true" size={16} strokeWidth={2.6} />
+                  </button>
+                </div>
+              ),
+            } satisfies ColumnDef<Candidato>,
+          ]
+        : []),
+    ],
+    [isAdmin],
+  );
+
   return (
     <section className="space-y-4">
+      {successAlert ? (
+        <SuccessModal
+          details={successAlert.details}
+          onClose={() => setSuccessAlert(null)}
+          summary={successAlert.summary}
+          title={successAlert.title}
+        />
+      ) : null}
+
       <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.9] p-4 shadow-panel backdrop-blur sm:p-6 dark:border-brand-line dark:bg-neutral-900/[0.92]">
         <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
           <div>
@@ -400,97 +531,113 @@ function CandidatosPage() {
           <UsersRound aria-hidden="true" className="text-brand-orange" size={28} strokeWidth={2.7} />
         </div>
 
-        <div className="mt-5 grid gap-3">
-          {isLoading ? (
-            <div className="inline-flex items-center gap-2 rounded-panel border border-neutral-200 bg-white/70 p-4 font-body font-black dark:border-brand-line dark:bg-black/[0.16]">
-              <Loader2 aria-hidden="true" className="animate-spin text-brand-orange" size={18} />
-              Cargando candidatos
-            </div>
-          ) : candidatos.length === 0 ? (
-            <div className="rounded-panel border border-neutral-200 bg-white/70 p-4 font-body font-black text-neutral-600 dark:border-brand-line dark:bg-black/[0.16] dark:text-orange-50/70">
-              {isAdmin ? "Todavia no hay candidatos. Carga el primero arriba." : "Todavia no hay candidatos cargados."}
-            </div>
-          ) : (
-            candidatos.map((candidato) => (
-              <article
-                className="rounded-panel border border-neutral-200 bg-white/75 p-4 dark:border-brand-line dark:bg-black/[0.16]"
-                key={candidato.id}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex min-w-0 gap-3">
-                    <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-panel bg-brand-orange text-brand-ink">
-                      {candidato.fotoUrl ? (
-                        <img
-                          alt={candidato.nombreCandidato}
-                          className="h-full w-full object-cover"
-                          src={candidato.fotoUrl}
-                        />
-                      ) : (
-                        <Vote aria-hidden="true" size={24} strokeWidth={2.8} />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-display text-xl leading-tight text-brand-ink dark:text-white">
-                        {candidato.nombreCandidato}
-                      </p>
-                      <p className="mt-1 font-body text-xs font-black uppercase text-brand-orange">
-                        Lista {candidato.numeroLista || "-"}
-                        {candidato.localidad ? ` - ${candidato.localidad}` : ""}
-                      </p>
-                      <p className="mt-1 font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
-                        {candidato.cargo || "Sin cargo definido"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {isAdmin ? (
-                    <div className="flex gap-2">
-                    <button
-                      aria-label={`Editar ${candidato.nombreCandidato}`}
-                      className="rounded-panel border border-neutral-300 bg-white p-2 text-brand-ink transition hover:border-brand-orange hover:text-brand-orange dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
-                      onClick={() => handleEdit(candidato)}
-                      type="button"
-                    >
-                      <Edit3 aria-hidden="true" size={16} strokeWidth={2.6} />
-                    </button>
-                    <button
-                      aria-label={`Eliminar ${candidato.nombreCandidato}`}
-                      className="rounded-panel border border-neutral-300 bg-white p-2 text-brand-ink transition hover:border-red-500 hover:text-red-500 dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
-                      onClick={() => handleDelete(candidato.id)}
-                      type="button"
-                    >
-                      <Trash2 aria-hidden="true" size={16} strokeWidth={2.6} />
-                    </button>
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="mt-3 grid gap-2 text-sm text-neutral-700 dark:text-orange-50/80 sm:grid-cols-2">
-                  <span className="inline-flex items-center gap-2">
-                    <MapPin aria-hidden="true" className="text-brand-orange" size={15} />
-                    Departamento: {candidato.departamento || "-"}
-                  </span>
-                  <span>Ciudad: {candidato.ciudad || "-"}</span>
-                  <span>Localidad: {candidato.localidad || "-"}</span>
-                  <span>Activo: {candidato.activo ? "Si" : "No"}</span>
-                </div>
-
-                {candidato.observaciones ? (
-                  <p className="mt-3 font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
-                    {candidato.observaciones}
-                  </p>
-                ) : null}
-
-                <p className="mt-3 inline-flex items-center gap-2 font-body text-xs font-black uppercase text-neutral-500 dark:text-orange-100/[0.58]">
-                  <UserRound aria-hidden="true" size={14} strokeWidth={2.7} />
-                  Creado por {candidato.createdByUser || "-"} - {formatDate(candidato.createdAt)}
-                </p>
-              </article>
-            ))
-          )}
+        <div className="mt-5">
+          <DataGrid
+            columns={columns}
+            data={candidatos}
+            emptyMessage={
+              isAdmin
+                ? "Todavia no hay candidatos. Carga el primero arriba."
+                : "Todavia no hay candidatos activos para tu territorio."
+            }
+            getRowKey={(candidato) => candidato.id}
+            isLoading={isLoading}
+            loadingMessage="Cargando candidatos"
+            renderMobileCard={(candidato) => (
+              <CandidatoCard
+                candidato={candidato}
+                isAdmin={isAdmin}
+                onDelete={handleDelete}
+                onEdit={handleEdit}
+              />
+            )}
+          />
         </div>
       </section>
     </section>
+  );
+}
+
+interface CandidatoCardProps {
+  candidato: Candidato;
+  isAdmin: boolean;
+  onDelete: (id: string) => void;
+  onEdit: (candidato: Candidato) => void;
+}
+
+function CandidatoCard({ candidato, isAdmin, onDelete, onEdit }: CandidatoCardProps) {
+  return (
+    <article className="rounded-panel border border-neutral-200 bg-white/75 p-4 dark:border-brand-line dark:bg-black/[0.16]">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 gap-3">
+          <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-panel bg-brand-orange text-brand-ink">
+            {candidato.fotoUrl ? (
+              <img
+                alt={candidato.nombreCandidato}
+                className="h-full w-full object-cover"
+                src={candidato.fotoUrl}
+              />
+            ) : (
+              <Vote aria-hidden="true" size={24} strokeWidth={2.8} />
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="font-display text-xl leading-tight text-brand-ink dark:text-white">
+              {candidato.nombreCandidato}
+            </p>
+            <p className="mt-1 font-body text-xs font-black uppercase text-brand-orange">
+              Lista {candidato.numeroLista || "-"}
+              {candidato.localidad ? ` - ${candidato.localidad}` : ""}
+            </p>
+            <p className="mt-1 font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
+              {candidato.cargo || "Sin cargo definido"}
+            </p>
+          </div>
+        </div>
+
+        {isAdmin ? (
+          <div className="flex gap-2">
+            <button
+              aria-label={`Editar ${candidato.nombreCandidato}`}
+              className="rounded-panel border border-neutral-300 bg-white p-2 text-brand-ink transition hover:border-brand-orange hover:text-brand-orange dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
+              onClick={() => onEdit(candidato)}
+              type="button"
+            >
+              <Edit3 aria-hidden="true" size={16} strokeWidth={2.6} />
+            </button>
+            <button
+              aria-label={`Eliminar ${candidato.nombreCandidato}`}
+              className="rounded-panel border border-neutral-300 bg-white p-2 text-brand-ink transition hover:border-red-500 hover:text-red-500 dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
+              onClick={() => onDelete(candidato.id)}
+              type="button"
+            >
+              <Trash2 aria-hidden="true" size={16} strokeWidth={2.6} />
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-3 grid gap-2 text-sm text-neutral-700 dark:text-orange-50/80 sm:grid-cols-2">
+        <span className="inline-flex items-center gap-2">
+          <MapPin aria-hidden="true" className="text-brand-orange" size={15} />
+          Departamento: {candidato.departamento || "-"}
+        </span>
+        <span>Ciudad: {candidato.ciudad || "-"}</span>
+        <span>Localidad: {candidato.localidad || "-"}</span>
+        <span>Activo: {candidato.activo ? "Si" : "No"}</span>
+      </div>
+
+      {candidato.observaciones ? (
+        <p className="mt-3 font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
+          {candidato.observaciones}
+        </p>
+      ) : null}
+
+      <p className="mt-3 inline-flex items-center gap-2 font-body text-xs font-black uppercase text-neutral-500 dark:text-orange-100/[0.58]">
+        <UserRound aria-hidden="true" size={14} strokeWidth={2.7} />
+        Creado por {candidato.createdByUser || "-"} - {formatDate(candidato.createdAt)}
+      </p>
+    </article>
   );
 }
 

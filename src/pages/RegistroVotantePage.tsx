@@ -9,12 +9,8 @@ import {
   Save,
   ShieldCheck,
   UserRound,
-  X,
 } from "lucide-react";
 import {
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table";
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
@@ -26,9 +22,12 @@ import LocationPickerMap from "../components/form/LocationPickerMap";
 import PadronReadonlyFields from "../components/form/PadronReadonlyFields";
 import PhoneField from "../components/form/PhoneField";
 import Button from "../components/ui/Button";
+import DataGrid from "../components/ui/DataGrid";
+import SuccessModal, { type SuccessModalDetail } from "../components/ui/SuccessModal";
 import TextInput from "../components/ui/TextInput";
 import { PARAGUAY_DEPARTMENTS, getParaguayCitiesByDepartment } from "../data/paraguayTerritories";
 import { usePadronLookup } from "../hooks/usePadronLookup";
+import { filterCandidatosForProfile } from "../lib/candidateTerritory";
 import { listarCandidatos } from "../lib/candidatosApi";
 import { listarUserProfiles } from "../lib/userProfilesApi";
 import {
@@ -89,10 +88,9 @@ const initialGridFilters = {
 };
 
 interface SuccessAlertState {
-  candidatoNombre: string;
-  createdAt: string;
-  id: string;
-  nombreApellido: string;
+  details: SuccessModalDetail[];
+  summary: string;
+  title: string;
 }
 
 type GridFilters = typeof initialGridFilters;
@@ -178,8 +176,15 @@ function RegistroVotantePage() {
         const data = await listarCandidatos();
 
         if (isMounted) {
-          setCandidatos(data.filter((candidato) => candidato.activo));
-          setCandidateFeedback(data.length ? null : "Carga candidatos antes de guardar Voto Seguro.");
+          const visibleCandidates = filterCandidatosForProfile(data, profile).filter(
+            (candidato) => candidato.activo,
+          );
+          setCandidatos(visibleCandidates);
+          setCandidateFeedback(
+            visibleCandidates.length
+              ? null
+              : "No hay candidatos activos para tu territorio operativo.",
+          );
         }
       } catch (error) {
         if (isMounted) {
@@ -197,7 +202,7 @@ function RegistroVotantePage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [profile]);
 
   useEffect(() => {
     void loadVotoSeguroRecords(initialGridFilters);
@@ -324,10 +329,13 @@ function RegistroVotantePage() {
 
       setSaveStatus("saved");
       setSuccessAlert({
-        candidatoNombre: candidato.nombreCandidato,
-        createdAt: saved.created_at,
-        id: saved.id,
-        nombreApellido: values.nombreApellido,
+        details: [
+          { label: "Votante", value: values.nombreApellido },
+          { label: "Candidato", value: candidato.nombreCandidato },
+          { label: "Carga", value: `${formatDate(saved.created_at)} - ID ${shortId(saved.id)}` },
+        ],
+        summary: "La carga quedo guardada y se actualizo la grilla de Voto Seguro.",
+        title: "Voto bien cargado",
       });
       resetRegistroForm(registroDefaultValues);
       padronLookup.reset();
@@ -341,7 +349,14 @@ function RegistroVotantePage() {
 
   return (
     <section className="space-y-4">
-      {successAlert ? <SuccessModal alert={successAlert} onClose={() => setSuccessAlert(null)} /> : null}
+      {successAlert ? (
+        <SuccessModal
+          details={successAlert.details}
+          onClose={() => setSuccessAlert(null)}
+          summary={successAlert.summary}
+          title={successAlert.title}
+        />
+      ) : null}
 
       <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.88] p-4 shadow-panel backdrop-blur sm:p-5 lg:p-7 dark:border-brand-line dark:bg-neutral-900/[0.92]">
         <form className="space-y-5 sm:space-y-6" onSubmit={handleSubmit(onSubmit)}>
@@ -458,88 +473,6 @@ function RegistroVotantePage() {
   );
 }
 
-interface SuccessModalProps {
-  alert: SuccessAlertState;
-  onClose: () => void;
-}
-
-function SuccessModal({ alert, onClose }: SuccessModalProps) {
-  return (
-    <div
-      className="fixed inset-0 z-[80] grid place-items-end bg-brand-ink/70 p-3 backdrop-blur-sm sm:place-items-center sm:p-6"
-    >
-      <button
-        aria-label="Cerrar confirmacion"
-        className="absolute inset-0 cursor-default"
-        onClick={onClose}
-        tabIndex={-1}
-        type="button"
-      />
-
-      <section
-        aria-labelledby="voto-seguro-modal-title"
-        aria-live="polite"
-        aria-modal="true"
-        className="relative w-full max-w-lg overflow-hidden rounded-panel border border-emerald-300 bg-white p-5 shadow-panel sm:p-6 dark:border-emerald-300/30 dark:bg-neutral-950"
-        role="dialog"
-      >
-        <button
-          aria-label="Cerrar modal"
-          className="absolute right-3 top-3 grid min-h-10 w-10 place-items-center rounded-panel border border-neutral-200 bg-white text-neutral-600 transition hover:border-emerald-500 hover:text-emerald-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500 dark:border-brand-line dark:bg-white/[0.06] dark:text-orange-50/70"
-          onClick={onClose}
-          type="button"
-        >
-          <X aria-hidden="true" size={18} strokeWidth={2.8} />
-        </button>
-
-        <div className="flex items-start gap-4 pr-10">
-          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-panel bg-emerald-600 text-white shadow-action">
-            <CheckCircle2 aria-hidden="true" size={34} strokeWidth={2.8} />
-          </div>
-          <div className="min-w-0">
-            <p className="font-body text-xs font-black uppercase text-emerald-700 dark:text-emerald-200">
-              Carga confirmada
-            </p>
-            <h2
-              className="mt-1 font-display text-3xl leading-none text-brand-ink sm:text-4xl dark:text-white"
-              id="voto-seguro-modal-title"
-            >
-              Voto bien cargado
-            </h2>
-          </div>
-        </div>
-
-        <div className="mt-5 rounded-panel border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-300/20 dark:bg-emerald-500/10">
-          <p className="mt-2 font-body text-sm font-bold text-emerald-900 dark:text-emerald-100">
-            {alert.nombreApellido} - {alert.candidatoNombre}
-          </p>
-          <p className="mt-1 font-body text-xs font-black uppercase text-emerald-800/80 dark:text-emerald-100/75">
-            {formatDate(alert.createdAt)} - ID {shortId(alert.id)}
-          </p>
-        </div>
-
-        <p className="mt-4 font-body text-sm font-semibold leading-relaxed text-neutral-600 dark:text-orange-50/70">
-          La carga quedo guardada y se actualizo la grilla de Voto Seguro.
-        </p>
-
-        <div className="mt-5 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
-          <p className="font-body text-xs font-black uppercase text-neutral-500 dark:text-orange-100/[0.58]">
-            Puedes cerrar y continuar cargando.
-          </p>
-          <button
-            autoFocus
-            className="inline-flex min-h-12 items-center justify-center rounded-panel bg-emerald-600 px-5 py-3 font-body text-sm font-black uppercase text-white shadow-action transition hover:bg-emerald-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-500"
-            onClick={onClose}
-            type="button"
-          >
-            Entendido
-          </button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
 interface VotoSeguroGridProps {
   candidatos: Candidato[];
   feedback: string;
@@ -635,12 +568,6 @@ function VotoSeguroGrid({
     },
     [isAdmin],
   );
-
-  const table = useReactTable({
-    columns,
-    data: records,
-    getCoreRowModel: getCoreRowModel(),
-  });
 
   return (
     <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.88] p-4 shadow-panel backdrop-blur sm:p-5 lg:p-7 dark:border-brand-line dark:bg-neutral-900/[0.92]">
@@ -795,59 +722,15 @@ function VotoSeguroGrid({
       </form>
 
       <div className="mt-5">
-        {isLoading ? (
-          <div className="inline-flex min-h-20 items-center gap-3 rounded-panel border border-neutral-200 bg-white/70 p-4 font-body font-black text-brand-ink dark:border-brand-line dark:bg-black/[0.16] dark:text-white">
-            <Loader2 aria-hidden="true" className="animate-spin text-brand-orange" size={22} />
-            Cargando Voto Seguro
-          </div>
-        ) : records.length === 0 ? (
-          <div className="rounded-panel border border-neutral-200 bg-white/70 p-4 font-body font-black text-neutral-600 dark:border-brand-line dark:bg-black/[0.16] dark:text-orange-50/70">
-            No hay registros para mostrar.
-          </div>
-        ) : (
-          <>
-            <div className="grid gap-3 lg:hidden">
-              {table.getRowModel().rows.map((row) => (
-                <VotoSeguroCard key={row.id} record={row.original} />
-              ))}
-            </div>
-
-            <div className="hidden overflow-x-auto rounded-panel border border-neutral-200 bg-white/75 dark:border-brand-line dark:bg-black/[0.16] lg:block">
-              <table className="min-w-full border-collapse text-left font-body text-sm">
-                <thead className="bg-neutral-100 text-[0.68rem] font-black uppercase text-neutral-500 dark:bg-white/[0.05] dark:text-orange-100/[0.58]">
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => (
-                        <th className="border-b border-neutral-200 px-4 py-3 dark:border-brand-line" key={header.id}>
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(header.column.columnDef.header, header.getContext())}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody>
-                  {table.getRowModel().rows.map((row) => (
-                    <tr
-                      className="border-b border-neutral-200 last:border-0 dark:border-brand-line"
-                      key={row.id}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <td
-                          className="px-4 py-3 align-top font-semibold text-neutral-700 dark:text-orange-50/80"
-                          key={cell.id}
-                        >
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
+        <DataGrid
+          columns={columns}
+          data={records}
+          emptyMessage="No hay registros para mostrar."
+          getRowKey={(record) => record.id}
+          isLoading={isLoading}
+          loadingMessage="Cargando Voto Seguro"
+          renderMobileCard={(record) => <VotoSeguroCard record={record} />}
+        />
       </div>
     </section>
   );
