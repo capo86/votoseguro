@@ -21,6 +21,7 @@ import CedulaLookupField from "../components/form/CedulaLookupField";
 import LocationPickerMap from "../components/form/LocationPickerMap";
 import PadronReadonlyFields from "../components/form/PadronReadonlyFields";
 import PhoneField from "../components/form/PhoneField";
+import AlertModal, { type AlertModalDetail } from "../components/ui/AlertModal";
 import Button from "../components/ui/Button";
 import DataGrid from "../components/ui/DataGrid";
 import SuccessModal, { type SuccessModalDetail } from "../components/ui/SuccessModal";
@@ -33,6 +34,7 @@ import { listarUserProfiles } from "../lib/userProfilesApi";
 import {
   crearVotoSeguroSnapshot,
   listarVotoSeguroSnapshots,
+  VotoSeguroDuplicateError,
   type VotoSeguroRecord,
 } from "../lib/votoSeguroApi";
 import { useAppStore } from "../store/appStore";
@@ -93,6 +95,12 @@ interface SuccessAlertState {
   title: string;
 }
 
+interface DuplicateAlertState {
+  details: AlertModalDetail[];
+  message: string;
+  title: string;
+}
+
 type GridFilters = typeof initialGridFilters;
 
 function RegistroVotantePage() {
@@ -106,6 +114,7 @@ function RegistroVotantePage() {
   const [isLoadingCandidatos, setIsLoadingCandidatos] = useState(true);
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const [records, setRecords] = useState<VotoSeguroRecord[]>([]);
+  const [duplicateAlert, setDuplicateAlert] = useState<DuplicateAlertState | null>(null);
   const [saveFeedback, setSaveFeedback] = useState("Sesion autenticada lista para guardar.");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [successAlert, setSuccessAlert] = useState<SuccessAlertState | null>(null);
@@ -342,6 +351,30 @@ function RegistroVotantePage() {
       setSaveFeedback("Carga guardada. Listo para registrar otro votante.");
       await loadVotoSeguroRecords(gridFilters);
     } catch (error) {
+      if (error instanceof VotoSeguroDuplicateError) {
+        const duplicate = error.duplicate;
+
+        setSaveStatus("idle");
+        setDuplicateAlert({
+          details: [
+            { label: "Cedula", value: duplicate.cedula },
+            { label: "Votante", value: duplicate.nombreApellido },
+            { label: "Referente", value: duplicate.loadedByNombre },
+            { label: "Fecha de carga", value: formatDate(duplicate.createdAt) },
+            {
+              label: "Territorio del referente",
+              value: [duplicate.loadedByDepartamento, duplicate.loadedByCiudad, duplicate.loadedByLocalidad]
+                .filter((value) => value && value !== "-")
+                .join(" / ") || "-",
+            },
+          ],
+          message: "Esta cedula ya tiene una carga activa en Voto Seguro.",
+          title: "Cedula ya cargada",
+        });
+        setSaveFeedback("La cedula ya fue cargada anteriormente.");
+        return;
+      }
+
       setSaveStatus("idle");
       setSaveFeedback(error instanceof Error ? error.message : "No se pudo guardar Voto Seguro.");
     }
@@ -355,6 +388,15 @@ function RegistroVotantePage() {
           onClose={() => setSuccessAlert(null)}
           summary={successAlert.summary}
           title={successAlert.title}
+        />
+      ) : null}
+
+      {duplicateAlert ? (
+        <AlertModal
+          details={duplicateAlert.details}
+          message={duplicateAlert.message}
+          onClose={() => setDuplicateAlert(null)}
+          title={duplicateAlert.title}
         />
       ) : null}
 

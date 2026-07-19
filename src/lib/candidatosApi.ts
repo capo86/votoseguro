@@ -1,8 +1,9 @@
 import { supabase } from "./supabaseClient";
-import type { Candidato } from "../types/candidato";
+import type { Candidato, CandidatoTipo, CandidatoTipoCodigo } from "../types/candidato";
 
 export interface CandidatoFormValues {
   nombreCandidato: string;
+  tipoCodigo: CandidatoTipoCodigo;
   cargo: string;
   numeroLista: string;
   localidad: string;
@@ -16,6 +17,7 @@ interface CandidatoRow {
   id: string;
   nombre: string | null;
   nombre_candidato: string | null;
+  tipo: CandidatoTipo | null;
   cargo: string | null;
   numero_lista: string | null;
   localidad: string | null;
@@ -30,7 +32,18 @@ interface CandidatoRow {
 }
 
 const CANDIDATO_COLUMNS =
-  "id,nombre,nombre_candidato,cargo,numero_lista,localidad,departamento,ciudad,foto_url,observaciones,activo,created_by_user,created_at,updated_at";
+  "id,nombre,nombre_candidato,tipo,cargo,numero_lista,localidad,departamento,ciudad,foto_url,observaciones,activo,created_by_user,created_at,updated_at";
+
+const CANDIDATO_TIPOS: Record<CandidatoTipoCodigo, CandidatoTipo> = {
+  ALIANZA: {
+    codigo: "ALIANZA",
+    nombre: "Alianza",
+  },
+  PPC: {
+    codigo: "PPC",
+    nombre: "PPC",
+  },
+};
 
 function requireSupabase() {
   if (!supabase) {
@@ -42,6 +55,7 @@ function requireSupabase() {
 
 function rowToCandidato(row: CandidatoRow): Candidato {
   const nombreCandidato = row.nombre_candidato ?? row.nombre ?? "";
+  const tipo = row.tipo?.codigo === "ALIANZA" ? CANDIDATO_TIPOS.ALIANZA : CANDIDATO_TIPOS.PPC;
 
   return {
     activo: row.activo ?? true,
@@ -56,6 +70,7 @@ function rowToCandidato(row: CandidatoRow): Candidato {
     nombreCandidato,
     numeroLista: row.numero_lista ?? undefined,
     observaciones: row.observaciones ?? undefined,
+    tipo,
     updatedAt: row.updated_at ?? undefined,
   };
 }
@@ -73,6 +88,7 @@ function formToPayload(values: CandidatoFormValues, createdByUser?: string) {
     nombre_candidato: nombreCandidato,
     numero_lista: values.numeroLista.trim() || null,
     observaciones: values.observaciones.trim() || null,
+    tipo: CANDIDATO_TIPOS[values.tipoCodigo] ?? CANDIDATO_TIPOS.PPC,
   };
 
   if (createdByUser) {
@@ -138,6 +154,14 @@ export async function eliminarCandidato(id: string) {
   const { error } = await client.from("candidatos").delete().eq("id", id);
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(normalizeCandidatoError(error.message));
   }
+}
+
+function normalizeCandidatoError(message: string) {
+  if (message.toLowerCase().includes("voto seguro cargado")) {
+    return "No se puede eliminar este candidato porque ya tiene Voto Seguro cargado.";
+  }
+
+  return message;
 }

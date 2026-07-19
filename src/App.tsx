@@ -8,7 +8,8 @@ import { useTheme } from "./hooks/useTheme";
 import { useAppStore } from "./store/appStore";
 
 const CandidatosPage = lazy(() => import("./pages/CandidatosPage"));
-const PadronContextPage = lazy(() => import("./pages/PadronContextPage"));
+const ConsultaPadronPage = lazy(() => import("./pages/ConsultaPadronPage"));
+const PanelPage = lazy(() => import("./pages/PanelPage"));
 const RegistroVotantePage = lazy(() => import("./pages/RegistroVotantePage"));
 const UsuariosPage = lazy(() => import("./pages/UsuariosPage"));
 
@@ -48,6 +49,14 @@ function App() {
   };
 
   const renderActiveSection = () => {
+    if (activeSection === "panel" && auth.isAdmin) {
+      return <PanelPage />;
+    }
+
+    if (activeSection === "consulta-padron") {
+      return <ConsultaPadronPage />;
+    }
+
     if (activeSection === "votoseguro") {
       return <RegistroVotantePage />;
     }
@@ -60,7 +69,7 @@ function App() {
       return <UsuariosPage />;
     }
 
-    return <PadronContextPage />;
+    return <RegistroVotantePage />;
   };
 
   if (auth.isLoading) {

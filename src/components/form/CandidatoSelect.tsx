@@ -39,7 +39,7 @@ function CandidatoSelect({ candidatos, error, isLoading = false, register }: Can
           </option>
           {candidatos.map((candidato) => (
             <option key={candidato.id} value={candidato.id}>
-              {candidato.nombreCandidato} - Lista {candidato.numeroLista || "-"}
+              {candidato.nombreCandidato} - {candidato.tipo.nombre} - Lista {candidato.numeroLista || "-"}
               {candidato.localidad ? ` - ${candidato.localidad}` : ""}
             </option>
           ))}

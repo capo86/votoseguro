@@ -1,5 +1,7 @@
 import {
   BarChart3,
+  IdCard,
+  LayoutDashboard,
   LogOut,
   Menu,
   PanelLeftClose,
@@ -32,9 +34,15 @@ interface AppShellProps {
 
 const navItems = [
   {
-    id: "padron",
-    label: "Padron",
-    icon: BarChart3,
+    adminOnly: true,
+    id: "panel",
+    label: "Panel",
+    icon: LayoutDashboard,
+  },
+  {
+    id: "consulta-padron",
+    label: "Consulta Padron",
+    icon: IdCard,
   },
   {
     id: "votoseguro",

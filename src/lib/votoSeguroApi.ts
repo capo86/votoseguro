@@ -49,6 +49,29 @@ export interface VotoSeguroRecord {
   createdAt: string;
 }
 
+export interface VotoSeguroDuplicateInfo {
+  cedula: string;
+  createdAt: string;
+  id: string;
+  loadedBy?: string;
+  loadedByCedula?: string;
+  loadedByCiudad?: string;
+  loadedByDepartamento?: string;
+  loadedByLocalidad?: string;
+  loadedByNombre: string;
+  nombreApellido: string;
+}
+
+export class VotoSeguroDuplicateError extends Error {
+  duplicate: VotoSeguroDuplicateInfo;
+
+  constructor(duplicate: VotoSeguroDuplicateInfo) {
+    super(`Esta cedula ya fue cargada por ${duplicate.loadedByNombre}.`);
+    this.duplicate = duplicate;
+    this.name = "VotoSeguroDuplicateError";
+  }
+}
+
 interface VotoSeguroRow {
   id: string;
   cedula: string;
@@ -73,6 +96,19 @@ interface VotoSeguroRow {
   loaded_by_nombre: string | null;
   loaded_by_role: string | null;
   estado: string;
+  created_at: string;
+}
+
+interface VotoSeguroDuplicateRow {
+  id: string;
+  cedula: string;
+  nombre_apellido: string;
+  loaded_by: string | null;
+  loaded_by_cedula: string | null;
+  loaded_by_ciudad: string | null;
+  loaded_by_departamento: string | null;
+  loaded_by_localidad: string | null;
+  loaded_by_nombre: string | null;
   created_at: string;
 }
 
@@ -130,6 +166,37 @@ function rowToVotoSeguroRecord(row: VotoSeguroRow): VotoSeguroRecord {
   };
 }
 
+function rowToDuplicateInfo(row: VotoSeguroDuplicateRow): VotoSeguroDuplicateInfo {
+  return {
+    cedula: row.cedula,
+    createdAt: row.created_at,
+    id: row.id,
+    loadedBy: row.loaded_by ?? undefined,
+    loadedByCedula: row.loaded_by_cedula ?? undefined,
+    loadedByCiudad: row.loaded_by_ciudad ?? undefined,
+    loadedByDepartamento: row.loaded_by_departamento ?? undefined,
+    loadedByLocalidad: row.loaded_by_localidad ?? undefined,
+    loadedByNombre: row.loaded_by_nombre || "otro referente",
+    nombreApellido: row.nombre_apellido,
+  };
+}
+
+export async function buscarVotoSeguroExistentePorCedula(cedula: string) {
+  const client = requireSupabase();
+  const normalizedCedula = cedula.replace(/\D/g, "");
+  const { data, error } = await client.rpc("buscar_votoseguro_existente_por_cedula", {
+    p_cedula: normalizedCedula,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const firstRow = Array.isArray(data) ? (data[0] as VotoSeguroDuplicateRow | undefined) : undefined;
+
+  return firstRow ? rowToDuplicateInfo(firstRow) : null;
+}
+
 export async function crearVotoSeguroSnapshot({
   candidato,
   padron,
@@ -145,6 +212,12 @@ export async function crearVotoSeguroSnapshot({
 
   if (!profile || !user) {
     throw new Error("Tu usuario no tiene perfil operativo activo.");
+  }
+
+  const duplicate = await buscarVotoSeguroExistentePorCedula(values.cedula);
+
+  if (duplicate) {
+    throw new VotoSeguroDuplicateError(duplicate);
   }
 
   const payload = {
@@ -197,10 +270,28 @@ export async function crearVotoSeguroSnapshot({
     .single();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(normalizeVotoSeguroError(error.message));
   }
 
   return data as { created_at: string; id: string };
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("es-PY", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+function normalizeVotoSeguroError(message: string) {
+  if (
+    message.includes("votoseguro_cedula_activo_uidx") ||
+    message.toLowerCase().includes("esta cedula ya fue cargada")
+  ) {
+    return "Esta cedula ya tiene una carga activa en Voto Seguro.";
+  }
+
+  return message;
 }
 
 export async function listarVotoSeguroSnapshots(filters: VotoSeguroFilters = {}) {

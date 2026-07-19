@@ -14,6 +14,7 @@ import {
   Vote,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import ConfirmModal from "../components/ui/ConfirmModal";
 import DataGrid from "../components/ui/DataGrid";
 import SuccessModal, { type SuccessModalDetail } from "../components/ui/SuccessModal";
 import {
@@ -36,6 +37,7 @@ import type { Candidato } from "../types/candidato";
 
 const initialForm: CandidatoFormValues = {
   nombreCandidato: "",
+  tipoCodigo: "PPC",
   cargo: "",
   numeroLista: "",
   localidad: "",
@@ -48,6 +50,7 @@ const initialForm: CandidatoFormValues = {
 function CandidatosPage() {
   const profile = useAppStore((state) => state.profile);
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
+  const [candidateToDelete, setCandidateToDelete] = useState<Candidato | null>(null);
   const [form, setForm] = useState<CandidatoFormValues>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState("Modulo de candidatos listo.");
@@ -146,6 +149,7 @@ function CandidatosPage() {
         setSuccessAlert({
           details: [
             { label: "Candidato", value: updated.nombreCandidato },
+            { label: "Tipo", value: updated.tipo.nombre },
             { label: "Lista", value: updated.numeroLista || "-" },
             { label: "Territorio", value: `${updated.departamento || "-"} / ${updated.ciudad || "-"}` },
           ],
@@ -159,6 +163,7 @@ function CandidatosPage() {
         setSuccessAlert({
           details: [
             { label: "Candidato", value: created.nombreCandidato },
+            { label: "Tipo", value: created.tipo.nombre },
             { label: "Lista", value: created.numeroLista || "-" },
             { label: "Territorio", value: `${created.departamento || "-"} / ${created.ciudad || "-"}` },
           ],
@@ -224,29 +229,44 @@ function CandidatosPage() {
       nombreCandidato: candidato.nombreCandidato,
       numeroLista: candidato.numeroLista ?? "",
       observaciones: candidato.observaciones ?? "",
+      tipoCodigo: candidato.tipo.codigo,
     });
     setFeedback(`Editando ${candidato.nombreCandidato}.`);
   };
 
-  const handleDelete = async (id: string) => {
+  const requestDelete = (candidato: Candidato) => {
     if (!isAdmin) {
       setFeedback("Solo administradores pueden eliminar candidatos.");
+      return;
+    }
+
+    setCandidateToDelete(candidato);
+  };
+
+  const handleDelete = async () => {
+    if (!isAdmin) {
+      setFeedback("Solo administradores pueden eliminar candidatos.");
+      return;
+    }
+
+    if (!candidateToDelete) {
       return;
     }
 
     setIsSaving(true);
 
     try {
-      await eliminarCandidato(id);
+      await eliminarCandidato(candidateToDelete.id);
       setCandidatos((currentCandidatos) =>
-        currentCandidatos.filter((candidato) => candidato.id !== id),
+        currentCandidatos.filter((candidato) => candidato.id !== candidateToDelete.id),
       );
 
-      if (editingId === id) {
+      if (editingId === candidateToDelete.id) {
         resetForm();
       }
 
       setFeedback("Candidato eliminado.");
+      setCandidateToDelete(null);
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "No se pudo eliminar candidato.");
     } finally {
@@ -282,6 +302,11 @@ function CandidatosPage() {
             </div>
           </div>
         ),
+      },
+      {
+        accessorKey: "tipo",
+        header: "Tipo",
+        cell: ({ row }) => row.original.tipo.nombre,
       },
       {
         accessorKey: "cargo",
@@ -326,7 +351,7 @@ function CandidatosPage() {
                   <button
                     aria-label={`Eliminar ${row.original.nombreCandidato}`}
                     className="rounded-panel border border-neutral-300 bg-white p-2 text-brand-ink transition hover:border-red-500 hover:text-red-500 dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
-                    onClick={() => handleDelete(row.original.id)}
+                    onClick={() => requestDelete(row.original)}
                     type="button"
                   >
                     <Trash2 aria-hidden="true" size={16} strokeWidth={2.6} />
@@ -348,6 +373,17 @@ function CandidatosPage() {
           onClose={() => setSuccessAlert(null)}
           summary={successAlert.summary}
           title={successAlert.title}
+        />
+      ) : null}
+
+      {candidateToDelete ? (
+        <ConfirmModal
+          confirmLabel="Eliminar"
+          isLoading={isSaving}
+          message={`Estas seguro que deseas eliminar a ${candidateToDelete.nombreCandidato}? Si el candidato ya tiene Voto Seguro cargado, el sistema no permitira borrarlo.`}
+          onCancel={() => setCandidateToDelete(null)}
+          onConfirm={handleDelete}
+          title="Eliminar candidato"
         />
       ) : null}
 
@@ -409,6 +445,13 @@ function CandidatosPage() {
             onChange={handleChange("cargo")}
             placeholder="Intendencia, concejalia..."
             value={form.cargo}
+          />
+          <SelectField
+            label="Tipo"
+            onChange={handleChange("tipoCodigo")}
+            options={["PPC", "ALIANZA"]}
+            placeholder="Seleccionar tipo"
+            value={form.tipoCodigo}
           />
           <SelectField
             label="Departamento"
@@ -547,7 +590,7 @@ function CandidatosPage() {
               <CandidatoCard
                 candidato={candidato}
                 isAdmin={isAdmin}
-                onDelete={handleDelete}
+                onDelete={requestDelete}
                 onEdit={handleEdit}
               />
             )}
@@ -561,7 +604,7 @@ function CandidatosPage() {
 interface CandidatoCardProps {
   candidato: Candidato;
   isAdmin: boolean;
-  onDelete: (id: string) => void;
+  onDelete: (candidato: Candidato) => void;
   onEdit: (candidato: Candidato) => void;
 }
 
@@ -586,7 +629,7 @@ function CandidatoCard({ candidato, isAdmin, onDelete, onEdit }: CandidatoCardPr
               {candidato.nombreCandidato}
             </p>
             <p className="mt-1 font-body text-xs font-black uppercase text-brand-orange">
-              Lista {candidato.numeroLista || "-"}
+              {candidato.tipo.nombre} - Lista {candidato.numeroLista || "-"}
               {candidato.localidad ? ` - ${candidato.localidad}` : ""}
             </p>
             <p className="mt-1 font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
@@ -608,7 +651,7 @@ function CandidatoCard({ candidato, isAdmin, onDelete, onEdit }: CandidatoCardPr
             <button
               aria-label={`Eliminar ${candidato.nombreCandidato}`}
               className="rounded-panel border border-neutral-300 bg-white p-2 text-brand-ink transition hover:border-red-500 hover:text-red-500 dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
-              onClick={() => onDelete(candidato.id)}
+              onClick={() => onDelete(candidato)}
               type="button"
             >
               <Trash2 aria-hidden="true" size={16} strokeWidth={2.6} />
@@ -699,7 +742,7 @@ function SelectField({
         <option value="">{placeholder}</option>
         {options.map((option) => (
           <option key={option} value={option}>
-            {option}
+            {option === "ALIANZA" ? "Alianza" : option}
           </option>
         ))}
       </select>
