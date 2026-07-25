@@ -1,3 +1,5 @@
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import type { Candidato } from "../types/candidato";
 
 const REPORT_TITLE = "LISTADO DE CANDIDATOS";
@@ -6,6 +8,9 @@ const LOGO_URL = "/logo-ppc-oficial.png";
 const ORANGE = "#F2820C";
 const INK = "#151413";
 const FIELD = "#FFFDF8";
+const ZIP_UTF8_FLAG = 0x0800;
+const ZIP_VERSION_NEEDED = 20;
+const XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 const REPORT_COLUMNS = [
   "Candidato",
@@ -19,11 +24,6 @@ const REPORT_COLUMNS = [
 ] as const;
 
 export async function exportCandidatesToPdf(candidatos: Candidato[]) {
-  const [{ jsPDF }, autoTableModule] = await Promise.all([
-    import("jspdf"),
-    import("jspdf-autotable"),
-  ]);
-  const autoTable = autoTableModule.default;
   const generatedAt = new Date();
   const logoDataUrl = await loadLogoDataUrl();
   const doc = new jsPDF({ format: "a4", orientation: "landscape", unit: "pt" });
@@ -64,35 +64,34 @@ export async function exportCandidatesToPdf(candidatos: Candidato[]) {
 }
 
 export async function exportCandidatesToExcel(candidatos: Candidato[]) {
-  const JSZip = (await import("jszip")).default;
   const generatedAt = new Date();
   const logoBlob = await loadLogoBlob();
   const hasLogo = Boolean(logoBlob);
-  const zip = new JSZip();
-
-  zip.file("[Content_Types].xml", buildContentTypesXml(hasLogo));
-  zip.file("_rels/.rels", buildRootRelsXml());
-  zip.file("docProps/app.xml", buildAppPropertiesXml());
-  zip.file("docProps/core.xml", buildCorePropertiesXml(generatedAt));
-  zip.file("xl/workbook.xml", buildWorkbookXml());
-  zip.file("xl/_rels/workbook.xml.rels", buildWorkbookRelsXml());
-  zip.file("xl/styles.xml", buildStylesXml());
-  zip.file("xl/worksheets/sheet1.xml", buildWorksheetXml(candidatos, generatedAt, hasLogo));
+  const zipFiles: ZipFileInput[] = [
+    { data: buildContentTypesXml(hasLogo), path: "[Content_Types].xml" },
+    { data: buildRootRelsXml(), path: "_rels/.rels" },
+    { data: buildAppPropertiesXml(), path: "docProps/app.xml" },
+    { data: buildCorePropertiesXml(generatedAt), path: "docProps/core.xml" },
+    { data: buildWorkbookXml(), path: "xl/workbook.xml" },
+    { data: buildWorkbookRelsXml(), path: "xl/_rels/workbook.xml.rels" },
+    { data: buildStylesXml(), path: "xl/styles.xml" },
+    {
+      data: buildWorksheetXml(candidatos, generatedAt, hasLogo),
+      path: "xl/worksheets/sheet1.xml",
+    },
+  ];
 
   if (logoBlob) {
-    zip.file("xl/worksheets/_rels/sheet1.xml.rels", buildWorksheetRelsXml());
-    zip.file("xl/drawings/drawing1.xml", buildDrawingXml());
-    zip.file("xl/drawings/_rels/drawing1.xml.rels", buildDrawingRelsXml());
-    zip.file("xl/media/logo.png", await logoBlob.arrayBuffer());
+    zipFiles.push(
+      { data: buildWorksheetRelsXml(), path: "xl/worksheets/_rels/sheet1.xml.rels" },
+      { data: buildDrawingXml(), path: "xl/drawings/drawing1.xml" },
+      { data: buildDrawingRelsXml(), path: "xl/drawings/_rels/drawing1.xml.rels" },
+      { data: await logoBlob.arrayBuffer(), path: "xl/media/logo.png" },
+    );
   }
 
-  const buffer = await zip.generateAsync({
-    compression: "DEFLATE",
-    type: "blob",
-  });
-
   downloadBlob(
-    buffer,
+    createZipBlob(zipFiles, generatedAt),
     buildReportFilename("xlsx"),
   );
 }
@@ -418,6 +417,166 @@ function buildCandidateWorksheetRow(candidato: Candidato, rowNumber: number) {
     .map((value, index) => textCell(`${columnName(index + 1)}${rowNumber}`, value, 5))
     .join("")}</row>`;
 }
+
+interface ZipFileInput {
+  data: string | ArrayBuffer;
+  path: string;
+}
+
+interface ZipFileEntry {
+  crc: number;
+  data: Uint8Array;
+  name: Uint8Array;
+  offset: number;
+}
+
+function createZipBlob(files: ZipFileInput[], modifiedAt: Date) {
+  const chunks: Uint8Array[] = [];
+  const centralDirectory: Uint8Array[] = [];
+  const entries: ZipFileEntry[] = [];
+  let offset = 0;
+
+  files.forEach((file) => {
+    const data = toBytes(file.data);
+    const name = toBytes(file.path);
+    const crc = crc32(data);
+    const localHeader = buildLocalFileHeader(name, data.length, crc, modifiedAt);
+
+    entries.push({ crc, data, name, offset });
+    chunks.push(localHeader, data);
+    offset += localHeader.length + data.length;
+  });
+
+  entries.forEach((entry) => {
+    centralDirectory.push(buildCentralDirectoryHeader(entry, modifiedAt));
+  });
+
+  const centralDirectorySize = centralDirectory.reduce((total, chunk) => total + chunk.length, 0);
+  const centralDirectoryOffset = offset;
+  const endRecord = buildEndOfCentralDirectory(entries.length, centralDirectorySize, centralDirectoryOffset);
+  const blobParts = [...chunks, ...centralDirectory, endRecord].map(copyToArrayBuffer);
+
+  return new Blob(blobParts, {
+    type: XLSX_MIME_TYPE,
+  });
+}
+
+function buildLocalFileHeader(name: Uint8Array, size: number, crc: number, modifiedAt: Date) {
+  const header = new Uint8Array(30 + name.length);
+  const view = new DataView(header.buffer);
+  const { dosDate, dosTime } = toDosDateTime(modifiedAt);
+
+  view.setUint32(0, 0x04034b50, true);
+  view.setUint16(4, ZIP_VERSION_NEEDED, true);
+  view.setUint16(6, ZIP_UTF8_FLAG, true);
+  view.setUint16(8, 0, true);
+  view.setUint16(10, dosTime, true);
+  view.setUint16(12, dosDate, true);
+  view.setUint32(14, crc, true);
+  view.setUint32(18, size, true);
+  view.setUint32(22, size, true);
+  view.setUint16(26, name.length, true);
+  view.setUint16(28, 0, true);
+  header.set(name, 30);
+
+  return header;
+}
+
+function buildCentralDirectoryHeader(entry: ZipFileEntry, modifiedAt: Date) {
+  const header = new Uint8Array(46 + entry.name.length);
+  const view = new DataView(header.buffer);
+  const { dosDate, dosTime } = toDosDateTime(modifiedAt);
+
+  view.setUint32(0, 0x02014b50, true);
+  view.setUint16(4, ZIP_VERSION_NEEDED, true);
+  view.setUint16(6, ZIP_VERSION_NEEDED, true);
+  view.setUint16(8, ZIP_UTF8_FLAG, true);
+  view.setUint16(10, 0, true);
+  view.setUint16(12, dosTime, true);
+  view.setUint16(14, dosDate, true);
+  view.setUint32(16, entry.crc, true);
+  view.setUint32(20, entry.data.length, true);
+  view.setUint32(24, entry.data.length, true);
+  view.setUint16(28, entry.name.length, true);
+  view.setUint16(30, 0, true);
+  view.setUint16(32, 0, true);
+  view.setUint16(34, 0, true);
+  view.setUint16(36, 0, true);
+  view.setUint32(38, 0, true);
+  view.setUint32(42, entry.offset, true);
+  header.set(entry.name, 46);
+
+  return header;
+}
+
+function buildEndOfCentralDirectory(entryCount: number, centralDirectorySize: number, centralDirectoryOffset: number) {
+  const header = new Uint8Array(22);
+  const view = new DataView(header.buffer);
+
+  view.setUint32(0, 0x06054b50, true);
+  view.setUint16(4, 0, true);
+  view.setUint16(6, 0, true);
+  view.setUint16(8, entryCount, true);
+  view.setUint16(10, entryCount, true);
+  view.setUint32(12, centralDirectorySize, true);
+  view.setUint32(16, centralDirectoryOffset, true);
+  view.setUint16(20, 0, true);
+
+  return header;
+}
+
+function crc32(bytes: Uint8Array) {
+  let crc = 0xffffffff;
+
+  for (const byte of bytes) {
+    crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function toBytes(value: string | ArrayBuffer) {
+  if (typeof value === "string") {
+    return new TextEncoder().encode(value);
+  }
+
+  return new Uint8Array(value);
+}
+
+function copyToArrayBuffer(bytes: Uint8Array) {
+  const copy = new Uint8Array(bytes.length);
+
+  copy.set(bytes);
+
+  return copy.buffer;
+}
+
+function toDosDateTime(value: Date) {
+  const year = Math.max(value.getFullYear(), 1980);
+
+  return {
+    dosDate: ((year - 1980) << 9) | ((value.getMonth() + 1) << 5) | value.getDate(),
+    dosTime: (value.getHours() << 11) | (value.getMinutes() << 5) | Math.floor(value.getSeconds() / 2),
+  };
+}
+
+function buildCrcTable() {
+  const table = new Uint32Array(256);
+
+  for (let index = 0; index < table.length; index += 1) {
+    let crc = index;
+
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
+    }
+
+    table[index] = crc >>> 0;
+  }
+
+  return table;
+}
+
+const CRC_TABLE = buildCrcTable();
 
 function textCell(reference: string, value: string, styleId: number) {
   return `<c r="${reference}" t="inlineStr" s="${styleId}"><is><t>${escapeXml(value)}</t></is></c>`;

@@ -65,6 +65,7 @@ function CandidatosPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [reportFeedback, setReportFeedback] = useState("Reportes listos.");
   const [tipoFilter, setTipoFilter] = useState<"TODOS" | CandidatoTipoCodigo>("TODOS");
   const [successAlert, setSuccessAlert] = useState<{
     details: SuccessModalDetail[];
@@ -315,17 +316,17 @@ function CandidatosPage() {
     setCandidateSearch("");
     setTipoFilter("TODOS");
     setEstadoFilter("TODOS");
-    setFeedback("Filtros limpios.");
+    setReportFeedback("Filtros limpios.");
   };
 
   const handleExport = async (format: "pdf" | "excel") => {
     if (!filteredCandidatos.length) {
-      setFeedback("No hay candidatos para exportar.");
+      setReportFeedback("No hay candidatos para exportar.");
       return;
     }
 
     setExportingReport(format);
-    setFeedback(format === "pdf" ? "Generando PDF." : "Generando Excel.");
+    setReportFeedback(format === "pdf" ? "Generando PDF." : "Generando Excel.");
 
     try {
       if (format === "pdf") {
@@ -334,9 +335,9 @@ function CandidatosPage() {
         await exportCandidatesToExcel(filteredCandidatos);
       }
 
-      setFeedback(format === "pdf" ? "PDF generado." : "Excel generado.");
+      setReportFeedback(format === "pdf" ? "PDF generado." : "Excel generado.");
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : "No se pudo generar el reporte.");
+      setReportFeedback(getReportErrorMessage(error, format));
     } finally {
       setExportingReport(null);
     }
@@ -734,6 +735,13 @@ function CandidatosPage() {
           </button>
         </div>
 
+        <p
+          aria-live="polite"
+          className="mt-3 font-body text-sm font-black text-neutral-600 dark:text-orange-50/70"
+        >
+          {reportFeedback}
+        </p>
+
         <div className="mt-5">
           <DataGrid
             columns={columns}
@@ -931,6 +939,20 @@ function normalizeFilterValue(value?: string) {
       .trim()
       .toUpperCase() ?? ""
   );
+}
+
+function getReportErrorMessage(error: unknown, format: "pdf" | "excel") {
+  const reportName = format === "pdf" ? "PDF" : "Excel";
+  const message = error instanceof Error ? error.message : "";
+
+  if (
+    message.includes("dynamically imported module") ||
+    message.includes("/node_modules/.vite/")
+  ) {
+    return `No se pudo cargar el generador de ${reportName}. Recarga la pagina e intenta de nuevo.`;
+  }
+
+  return `No se pudo generar el ${reportName}.`;
 }
 
 export default CandidatosPage;
