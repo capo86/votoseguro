@@ -5,7 +5,8 @@ import type { PadronResponse, RegistroVotanteFormValues } from "../types/votante
 import { supabase } from "./supabaseClient";
 
 export interface CrearVotoSeguroSnapshotArgs {
-  candidato: Candidato;
+  candidatoConcejal: Candidato;
+  candidatoIntendente?: Candidato | null;
   padron: PadronResponse | null;
   profile: UserProfile | null;
   user: User | null;
@@ -14,12 +15,16 @@ export interface CrearVotoSeguroSnapshotArgs {
 
 export interface VotoSeguroFilters {
   candidatoId?: string;
+  cedula?: string;
   ciudad?: string;
   departamento?: string;
   dateFrom?: string;
   dateTo?: string;
+  fueNotificado?: boolean;
   loadedBy?: string;
   loadedByLocalidad?: string;
+  nombre?: string;
+  telefono?: string;
 }
 
 export interface VotoSeguroRecord {
@@ -38,6 +43,17 @@ export interface VotoSeguroRecord {
   candidatoNombre: string;
   candidatoNumeroLista?: string;
   candidatoCargo?: string;
+  concejalId?: string;
+  concejalNombre?: string;
+  concejalNumeroLista?: string;
+  concejalCargo?: string;
+  fechaNotificacion?: string;
+  fechaRenotificacion?: string;
+  fueNotificado: boolean;
+  intendenteId?: string;
+  intendenteNombre?: string;
+  intendenteNumeroLista?: string;
+  intendenteCargo?: string;
   loadedBy?: string;
   loadedByCedula?: string;
   loadedByCiudad?: string;
@@ -47,6 +63,7 @@ export interface VotoSeguroRecord {
   loadedByRole?: string;
   estado: string;
   createdAt: string;
+  userNotifico?: string;
 }
 
 export interface VotoSeguroDuplicateInfo {
@@ -88,6 +105,17 @@ interface VotoSeguroRow {
   candidato_nombre: string;
   candidato_numero_lista: string | null;
   candidato_cargo: string | null;
+  concejal_id: string | null;
+  concejal_nombre: string | null;
+  concejal_numero_lista: string | null;
+  concejal_cargo: string | null;
+  fecha_notificacion: string | null;
+  fecha_renotificacion: string | null;
+  fue_notificado: boolean | null;
+  intendente_id: string | null;
+  intendente_nombre: string | null;
+  intendente_numero_lista: string | null;
+  intendente_cargo: string | null;
   loaded_by: string | null;
   loaded_by_cedula: string | null;
   loaded_by_ciudad: string | null;
@@ -97,6 +125,7 @@ interface VotoSeguroRow {
   loaded_by_role: string | null;
   estado: string;
   created_at: string;
+  user_notifico: string | null;
 }
 
 interface VotoSeguroDuplicateRow {
@@ -113,7 +142,7 @@ interface VotoSeguroDuplicateRow {
 }
 
 const VOTO_SEGURO_COLUMNS =
-  "id,cedula,nombre_apellido,telefono,departamento,distrito_descripcion,zona_descripcion,local_descripcion,local_votacion,mesa,orden,candidato_id,candidato_nombre,candidato_numero_lista,candidato_cargo,loaded_by,loaded_by_cedula,loaded_by_ciudad,loaded_by_departamento,loaded_by_localidad,loaded_by_nombre,loaded_by_role,estado,created_at";
+  "id,cedula,nombre_apellido,telefono,departamento,distrito_descripcion,zona_descripcion,local_descripcion,local_votacion,mesa,orden,candidato_id,candidato_nombre,candidato_numero_lista,candidato_cargo,concejal_id,concejal_nombre,concejal_numero_lista,concejal_cargo,fue_notificado,user_notifico,fecha_notificacion,fecha_renotificacion,intendente_id,intendente_nombre,intendente_numero_lista,intendente_cargo,loaded_by,loaded_by_cedula,loaded_by_ciudad,loaded_by_departamento,loaded_by_localidad,loaded_by_nombre,loaded_by_role,estado,created_at";
 
 function requireSupabase() {
   if (!supabase) {
@@ -144,11 +173,22 @@ function rowToVotoSeguroRecord(row: VotoSeguroRow): VotoSeguroRecord {
     candidatoNombre: row.candidato_nombre,
     candidatoNumeroLista: row.candidato_numero_lista ?? undefined,
     cedula: row.cedula,
+    concejalCargo: row.concejal_cargo ?? row.candidato_cargo ?? undefined,
+    concejalId: row.concejal_id ?? row.candidato_id ?? undefined,
+    concejalNombre: row.concejal_nombre ?? row.candidato_nombre ?? undefined,
+    concejalNumeroLista: row.concejal_numero_lista ?? row.candidato_numero_lista ?? undefined,
     createdAt: row.created_at,
     departamento: row.departamento ?? undefined,
     distrito: row.distrito_descripcion ?? undefined,
     estado: row.estado,
+    fechaNotificacion: row.fecha_notificacion ?? undefined,
+    fechaRenotificacion: row.fecha_renotificacion ?? undefined,
+    fueNotificado: row.fue_notificado ?? false,
     id: row.id,
+    intendenteCargo: row.intendente_cargo ?? undefined,
+    intendenteId: row.intendente_id ?? undefined,
+    intendenteNombre: row.intendente_nombre ?? undefined,
+    intendenteNumeroLista: row.intendente_numero_lista ?? undefined,
     loadedBy: row.loaded_by ?? undefined,
     loadedByCedula: row.loaded_by_cedula ?? undefined,
     loadedByCiudad: row.loaded_by_ciudad ?? undefined,
@@ -162,6 +202,7 @@ function rowToVotoSeguroRecord(row: VotoSeguroRow): VotoSeguroRecord {
     nombreApellido: row.nombre_apellido,
     orden: row.orden ?? undefined,
     telefono: row.telefono,
+    userNotifico: row.user_notifico ?? undefined,
     zona: row.zona_descripcion ?? undefined,
   };
 }
@@ -198,7 +239,8 @@ export async function buscarVotoSeguroExistentePorCedula(cedula: string) {
 }
 
 export async function crearVotoSeguroSnapshot({
-  candidato,
+  candidatoConcejal,
+  candidatoIntendente,
   padron,
   profile,
   user,
@@ -222,15 +264,23 @@ export async function crearVotoSeguroSnapshot({
 
   const payload = {
     apellido: emptyToNull(padron?.apellido),
-    candidato_cargo: emptyToNull(candidato.cargo),
-    candidato_ciudad: emptyToNull(candidato.ciudad),
-    candidato_departamento: emptyToNull(candidato.departamento),
-    candidato_id: candidato.id,
-    candidato_localidad: emptyToNull(candidato.localidad),
-    candidato_nombre: candidato.nombreCandidato,
-    candidato_numero_lista: emptyToNull(candidato.numeroLista),
-    candidato_snapshot: candidato,
+    candidato_cargo: emptyToNull(candidatoConcejal.cargo),
+    candidato_ciudad: emptyToNull(candidatoConcejal.ciudad),
+    candidato_departamento: emptyToNull(candidatoConcejal.departamento),
+    candidato_id: candidatoConcejal.id,
+    candidato_localidad: emptyToNull(candidatoConcejal.localidad),
+    candidato_nombre: candidatoConcejal.nombreCandidato,
+    candidato_numero_lista: emptyToNull(candidatoConcejal.numeroLista),
+    candidato_snapshot: candidatoConcejal,
     cedula: values.cedula.trim(),
+    concejal_cargo: emptyToNull(candidatoConcejal.cargo),
+    concejal_ciudad: emptyToNull(candidatoConcejal.ciudad),
+    concejal_departamento: emptyToNull(candidatoConcejal.departamento),
+    concejal_id: candidatoConcejal.id,
+    concejal_localidad: emptyToNull(candidatoConcejal.localidad),
+    concejal_nombre: candidatoConcejal.nombreCandidato,
+    concejal_numero_lista: emptyToNull(candidatoConcejal.numeroLista),
+    concejal_snapshot: candidatoConcejal,
     depart: toNumber(padron?.departamentoCodigo),
     departamento: values.departamento.trim(),
     distrito: toNumber(padron?.distritoCodigo),
@@ -238,6 +288,14 @@ export async function crearVotoSeguroSnapshot({
     estado: "activo",
     fecha_inscripcion: padron?.fechaInscripcion ?? null,
     fecha_nacimiento: padron?.fechaNacimiento ?? null,
+    intendente_cargo: emptyToNull(candidatoIntendente?.cargo),
+    intendente_ciudad: emptyToNull(candidatoIntendente?.ciudad),
+    intendente_departamento: emptyToNull(candidatoIntendente?.departamento),
+    intendente_id: candidatoIntendente?.id ?? null,
+    intendente_localidad: emptyToNull(candidatoIntendente?.localidad),
+    intendente_nombre: candidatoIntendente?.nombreCandidato ?? null,
+    intendente_numero_lista: emptyToNull(candidatoIntendente?.numeroLista),
+    intendente_snapshot: candidatoIntendente ?? {},
     loaded_by: user?.id,
     loaded_by_cedula: profile.cedula,
     loaded_by_ciudad: profile.ciudad,
@@ -276,6 +334,34 @@ export async function crearVotoSeguroSnapshot({
   return data as { created_at: string; id: string };
 }
 
+export async function registrarNotificacionWhatsapp(record: VotoSeguroRecord, userId?: string | null) {
+  const client = requireSupabase();
+  const notificationDate = new Date().toISOString();
+  const hadPreviousNotification = Boolean(record.fechaNotificacion);
+
+  const payload = {
+    fecha_notificacion: record.fechaNotificacion ?? notificationDate,
+    fecha_renotificacion: hadPreviousNotification
+      ? notificationDate
+      : record.fechaRenotificacion ?? null,
+    fue_notificado: true,
+    user_notifico: userId ?? null,
+  };
+
+  const { data, error } = await client
+    .from("votoseguro")
+    .update(payload)
+    .eq("id", record.id)
+    .select(VOTO_SEGURO_COLUMNS)
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return rowToVotoSeguroRecord(data as VotoSeguroRow);
+}
+
 function formatDateTime(value: string) {
   return new Intl.DateTimeFormat("es-PY", {
     dateStyle: "short",
@@ -296,9 +382,12 @@ function normalizeVotoSeguroError(message: string) {
 
 export async function listarVotoSeguroSnapshots(filters: VotoSeguroFilters = {}) {
   const client = requireSupabase();
+  const cedula = filters.cedula?.replace(/\D/g, "");
   const departamento = filters.departamento?.trim();
   const ciudad = filters.ciudad?.trim();
   const loadedByLocalidad = filters.loadedByLocalidad?.trim();
+  const nombre = filters.nombre?.trim();
+  const telefono = filters.telefono?.replace(/\D/g, "");
 
   let query = client
     .from("votoseguro")
@@ -307,15 +396,33 @@ export async function listarVotoSeguroSnapshots(filters: VotoSeguroFilters = {})
     .limit(80);
 
   if (filters.candidatoId) {
-    query = query.eq("candidato_id", filters.candidatoId);
+    query = query.or(
+      `candidato_id.eq.${filters.candidatoId},concejal_id.eq.${filters.candidatoId},intendente_id.eq.${filters.candidatoId}`,
+    );
   }
 
   if (departamento) {
     query = query.ilike("departamento", `%${departamento}%`);
   }
 
+  if (cedula) {
+    query = query.ilike("cedula", `%${cedula}%`);
+  }
+
   if (ciudad) {
     query = query.ilike("distrito_descripcion", `%${ciudad}%`);
+  }
+
+  if (nombre) {
+    query = query.ilike("nombre_apellido", `%${nombre}%`);
+  }
+
+  if (telefono) {
+    query = query.ilike("telefono", `%${telefono}%`);
+  }
+
+  if (typeof filters.fueNotificado === "boolean") {
+    query = query.eq("fue_notificado", filters.fueNotificado);
   }
 
   if (filters.loadedBy) {

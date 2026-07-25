@@ -1,16 +1,21 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertCircle,
+  BellRing,
   CalendarDays,
   CheckCircle2,
   Filter,
   Loader2,
+  MessageCircle,
+  Phone,
   RefreshCcw,
   Save,
+  Search,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
 import {
+  type ColumnFiltersState,
   type ColumnDef,
 } from "@tanstack/react-table";
 import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
@@ -28,12 +33,14 @@ import SuccessModal, { type SuccessModalDetail } from "../components/ui/SuccessM
 import TextInput from "../components/ui/TextInput";
 import { PARAGUAY_DEPARTMENTS, getParaguayCitiesByDepartment } from "../data/paraguayTerritories";
 import { usePadronLookup } from "../hooks/usePadronLookup";
-import { filterCandidatosForProfile } from "../lib/candidateTerritory";
+import { filterCandidatesByElectionRole } from "../lib/candidateCargo";
+import { filterCandidatosForProfile, filterCandidatosForVoter, territoriesMatch } from "../lib/candidateTerritory";
 import { listarCandidatos } from "../lib/candidatosApi";
 import { listarUserProfiles } from "../lib/userProfilesApi";
 import {
   crearVotoSeguroSnapshot,
   listarVotoSeguroSnapshots,
+  registrarNotificacionWhatsapp,
   VotoSeguroDuplicateError,
   type VotoSeguroRecord,
 } from "../lib/votoSeguroApi";
@@ -50,7 +57,8 @@ const registroSchema = z.object({
   zona: z.string().min(1, "Consulta una cedula para completar este dato."),
   local: z.string().min(1, "Consulta una cedula para completar este dato."),
   telefono: z.string().regex(/^09\d{8}$/, "Usa el formato paraguayo 09XXXXXXXX."),
-  candidatoId: z.string().min(1, "Selecciona un candidato."),
+  candidatoConcejalId: z.string().min(1, "Selecciona un candidato a concejal."),
+  candidatoIntendenteId: z.string(),
   ubicacion: z.object(
     {
       lat: z.number(),
@@ -68,7 +76,8 @@ const emptyPadron = {
 };
 
 const registroDefaultValues: RegistroVotanteFormValues = {
-  candidatoId: "",
+  candidatoConcejalId: "",
+  candidatoIntendenteId: "",
   cedula: "",
   departamento: "",
   distrito: "",
@@ -81,12 +90,16 @@ const registroDefaultValues: RegistroVotanteFormValues = {
 
 const initialGridFilters = {
   candidatoId: "",
+  cedula: "",
   ciudad: "",
   departamento: "",
   dateFrom: "",
   dateTo: "",
   loadedBy: "",
   localidad: "",
+  nombre: "",
+  notificacion: "TODOS",
+  telefono: "",
 };
 
 interface SuccessAlertState {
@@ -115,6 +128,8 @@ function RegistroVotantePage() {
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const [records, setRecords] = useState<VotoSeguroRecord[]>([]);
   const [duplicateAlert, setDuplicateAlert] = useState<DuplicateAlertState | null>(null);
+  const [municipalityAlert, setMunicipalityAlert] = useState<DuplicateAlertState | null>(null);
+  const [notifyingRecordId, setNotifyingRecordId] = useState<string | null>(null);
   const [saveFeedback, setSaveFeedback] = useState("Sesion autenticada lista para guardar.");
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved">("idle");
   const [successAlert, setSuccessAlert] = useState<SuccessAlertState | null>(null);
@@ -127,6 +142,7 @@ function RegistroVotantePage() {
     handleSubmit,
     register,
     reset: resetRegistroForm,
+    setError,
     setValue,
     trigger,
     watch,
@@ -144,6 +160,29 @@ function RegistroVotantePage() {
     zona: watch("zona"),
   };
   const ubicacion = watch("ubicacion");
+  const candidatosParaVotante = useMemo(
+    () =>
+      filterCandidatosForVoter(candidatos, {
+        departamento: padronValues.departamento,
+        distrito: padronValues.distrito,
+      }),
+    [candidatos, padronValues.departamento, padronValues.distrito],
+  );
+  const candidatosConcejal = useMemo(
+    () => filterCandidatesByElectionRole(candidatosParaVotante, "concejal"),
+    [candidatosParaVotante],
+  );
+  const candidatosIntendente = useMemo(
+    () => filterCandidatesByElectionRole(candidatosParaVotante, "intendente"),
+    [candidatosParaVotante],
+  );
+  const hasIntendenteOptions = candidatosIntendente.length > 0;
+  const municipalityMismatch = Boolean(
+    profile?.role === "referente" &&
+      padronLookup.data &&
+      (!territoriesMatch(padronLookup.data.departamento, profile.departamento) ||
+        !territoriesMatch(padronLookup.data.distrito, profile.ciudad)),
+  );
 
   const loadVotoSeguroRecords = useCallback(
     async (filtersToApply: GridFilters) => {
@@ -152,12 +191,21 @@ function RegistroVotantePage() {
       try {
         const data = await listarVotoSeguroSnapshots({
           candidatoId: filtersToApply.candidatoId || undefined,
+          cedula: filtersToApply.cedula || undefined,
           ciudad: filtersToApply.ciudad || undefined,
           departamento: filtersToApply.departamento || undefined,
           dateFrom: filtersToApply.dateFrom || undefined,
           dateTo: filtersToApply.dateTo || undefined,
+          fueNotificado:
+            filtersToApply.notificacion === "NOTIFICADOS"
+              ? true
+              : filtersToApply.notificacion === "PENDIENTES"
+              ? false
+              : undefined,
           loadedBy: isAdmin ? filtersToApply.loadedBy || undefined : user?.id,
           loadedByLocalidad: isAdmin ? filtersToApply.localidad || undefined : undefined,
+          nombre: filtersToApply.nombre || undefined,
+          telefono: filtersToApply.telefono || undefined,
         });
         setRecords(data);
         setGridFeedback(data.length ? `${data.length} cargas encontradas.` : "No hay cargas con esos filtros.");
@@ -256,9 +304,37 @@ function RegistroVotantePage() {
     setValue("distrito", padronLookup.data.distrito, { shouldValidate: true });
     setValue("zona", padronLookup.data.zona, { shouldValidate: true });
     setValue("local", padronLookup.data.local, { shouldValidate: true });
+    setValue("candidatoConcejalId", "", { shouldValidate: false });
+    setValue("candidatoIntendenteId", "", { shouldValidate: false });
     setSaveFeedback("Padron cargado. El nombre queda bloqueado para preservar el snapshot.");
     setSaveStatus("idle");
   }, [padronLookup.data, setValue]);
+
+  useEffect(() => {
+    if (!municipalityMismatch) {
+      return;
+    }
+
+    setValue("candidatoConcejalId", "", { shouldValidate: false });
+    setValue("candidatoIntendenteId", "", { shouldValidate: false });
+    setMunicipalityAlert({
+      details: [
+        { label: "Cedula", value: padronLookup.data?.cedula || cedula || "-" },
+        {
+          label: "Pertenece a",
+          value: `${padronLookup.data?.departamento || "-"} / ${padronLookup.data?.distrito || "-"}`,
+        },
+        {
+          label: "Municipio operativo",
+          value: `${profile?.departamento || "-"} / ${profile?.ciudad || "-"}`,
+        },
+      ],
+      message: "Cedula ingresada no pertenece al municipio.",
+      title: "Municipio incorrecto",
+    });
+    setSaveFeedback("Cedula ingresada no pertenece al municipio.");
+    setSaveStatus("idle");
+  }, [cedula, municipalityMismatch, padronLookup.data, profile?.ciudad, profile?.departamento, setValue]);
 
   const handleLookup = async () => {
     const validCedula = await trigger("cedula");
@@ -278,9 +354,12 @@ function RegistroVotantePage() {
   const handleCedulaChange = () => {
     setSaveStatus("idle");
     setSuccessAlert(null);
+    setMunicipalityAlert(null);
     padronLookup.reset();
     setSaveFeedback("Consulta la cedula para completar el padron.");
     setValue("nombreApellido", "", { shouldValidate: false });
+    setValue("candidatoConcejalId", "", { shouldValidate: false });
+    setValue("candidatoIntendenteId", "", { shouldValidate: false });
 
     if (Object.values(padronValues).every(Boolean)) {
       setValue("departamento", emptyPadron.departamento, { shouldValidate: false });
@@ -318,18 +397,100 @@ function RegistroVotantePage() {
     void loadVotoSeguroRecords(initialGridFilters);
   };
 
-  const onSubmit = async (values: RegistroVotanteFormValues) => {
-    const candidato = candidatos.find((item) => item.id === values.candidatoId);
+  const handleNotifyWhatsapp = async (record: VotoSeguroRecord) => {
+    let whatsappUrl = "";
 
-    if (!candidato) {
+    try {
+      whatsappUrl = buildWhatsappUrl(record);
+    } catch (error) {
+      setGridFeedback(error instanceof Error ? error.message : "No se pudo preparar WhatsApp.");
+      return;
+    }
+
+    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
+    setNotifyingRecordId(record.id);
+    setGridFeedback("WhatsApp abierto. Registrando notificacion.");
+
+    try {
+      const updatedRecord = await registrarNotificacionWhatsapp(record, user?.id);
+      setRecords((currentRecords) =>
+        currentRecords.map((currentRecord) =>
+          currentRecord.id === updatedRecord.id ? updatedRecord : currentRecord,
+        ),
+      );
+      setGridFeedback(record.fueNotificado ? "Renotificacion registrada." : "Notificacion registrada.");
+    } catch (error) {
+      setGridFeedback(
+        error instanceof Error
+          ? error.message
+          : "WhatsApp se abrio, pero no se pudo registrar la notificacion.",
+      );
+    } finally {
+      setNotifyingRecordId(null);
+    }
+  };
+
+  const handleCloseMunicipalityAlert = () => {
+    setMunicipalityAlert(null);
+    resetRegistroForm(registroDefaultValues);
+    padronLookup.reset();
+    setSaveFeedback("Consulta la cedula para completar el padron.");
+    setSaveStatus("idle");
+  };
+
+  const onSubmit = async (values: RegistroVotanteFormValues) => {
+    if (municipalityMismatch) {
       setSaveStatus("idle");
-      setSaveFeedback("Selecciona un candidato valido antes de guardar.");
+      setMunicipalityAlert({
+        details: [
+          { label: "Cedula", value: padronLookup.data?.cedula || values.cedula },
+          {
+            label: "Pertenece a",
+            value: `${padronLookup.data?.departamento || "-"} / ${padronLookup.data?.distrito || "-"}`,
+          },
+          {
+            label: "Municipio operativo",
+            value: `${profile?.departamento || "-"} / ${profile?.ciudad || "-"}`,
+          },
+        ],
+        message: "Cedula ingresada no pertenece al municipio.",
+        title: "Municipio incorrecto",
+      });
+      setSaveFeedback("Cedula ingresada no pertenece al municipio.");
+      return;
+    }
+
+    const candidatoConcejal = candidatosConcejal.find((item) => item.id === values.candidatoConcejalId);
+    const candidatoIntendente = values.candidatoIntendenteId
+      ? candidatosIntendente.find((item) => item.id === values.candidatoIntendenteId)
+      : null;
+
+    if (!candidatoConcejal) {
+      setSaveStatus("idle");
+      setSaveFeedback("Selecciona un candidato a concejal valido para el territorio del votante.");
+      return;
+    }
+
+    if (hasIntendenteOptions && !values.candidatoIntendenteId) {
+      setError("candidatoIntendenteId", {
+        message: "Selecciona un candidato a intendente para este distrito.",
+        type: "required",
+      });
+      setSaveStatus("idle");
+      setSaveFeedback("Este distrito tiene candidatos a intendente; selecciona uno para continuar.");
+      return;
+    }
+
+    if (values.candidatoIntendenteId && !candidatoIntendente) {
+      setSaveStatus("idle");
+      setSaveFeedback("Selecciona un candidato a intendente valido para el territorio del votante.");
       return;
     }
 
     try {
       const saved = await crearVotoSeguroSnapshot({
-        candidato,
+        candidatoConcejal,
+        candidatoIntendente,
         padron: padronLookup.data,
         profile,
         user,
@@ -340,7 +501,10 @@ function RegistroVotantePage() {
       setSuccessAlert({
         details: [
           { label: "Votante", value: values.nombreApellido },
-          { label: "Candidato", value: candidato.nombreCandidato },
+          ...(candidatoIntendente
+            ? [{ label: "Intendente", value: candidatoIntendente.nombreCandidato }]
+            : []),
+          { label: "Concejal", value: candidatoConcejal.nombreCandidato },
           { label: "Carga", value: `${formatDate(saved.created_at)} - ID ${shortId(saved.id)}` },
         ],
         summary: "La carga quedo guardada y se actualizo la grilla de Voto Seguro.",
@@ -400,6 +564,17 @@ function RegistroVotantePage() {
         />
       ) : null}
 
+      {municipalityAlert ? (
+        <AlertModal
+          details={municipalityAlert.details}
+          eyebrow="Territorio no permitido"
+          message={municipalityAlert.message}
+          onClose={handleCloseMunicipalityAlert}
+          title={municipalityAlert.title}
+          tone="danger"
+        />
+      ) : null}
+
       <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.88] p-4 shadow-panel backdrop-blur sm:p-5 lg:p-7 dark:border-brand-line dark:bg-neutral-900/[0.92]">
         <form className="space-y-5 sm:space-y-6" onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-3 border-b border-neutral-200 pb-5 sm:grid-cols-[1fr_auto] sm:items-start dark:border-brand-line">
@@ -451,11 +626,29 @@ function RegistroVotantePage() {
               error={errors.telefono?.message}
               register={register("telefono", { onChange: markDirty })}
             />
+            {hasIntendenteOptions ? (
+              <CandidatoSelect
+                candidatos={candidatosIntendente}
+                emptyLabel="Sin candidatos a intendente"
+                error={errors.candidatoIntendenteId?.message}
+                id="candidatoIntendenteId"
+                isLoading={isLoadingCandidatos}
+                label="Intendente"
+                register={register("candidatoIntendenteId", { onChange: markDirty })}
+              />
+            ) : null}
             <CandidatoSelect
-              candidatos={candidatos}
-              error={errors.candidatoId?.message}
+              candidatos={candidatosConcejal}
+              emptyLabel={
+                padronValues.departamento && padronValues.distrito
+                  ? "Sin concejales para este territorio"
+                  : "Consulta una cedula primero"
+              }
+              error={errors.candidatoConcejalId?.message}
+              id="candidatoConcejalId"
               isLoading={isLoadingCandidatos}
-              register={register("candidatoId", { onChange: markDirty })}
+              label="Concejal / Titular"
+              register={register("candidatoConcejalId", { onChange: markDirty })}
             />
           </div>
 
@@ -463,6 +656,20 @@ function RegistroVotantePage() {
             <div className="flex items-center gap-2 rounded-panel border border-brand-orange/40 bg-brand-orange/10 px-4 py-3 font-body text-sm font-bold text-brand-ink dark:text-orange-50">
               <AlertCircle aria-hidden="true" size={18} strokeWidth={2.6} />
               {candidateFeedback}
+            </div>
+          ) : null}
+
+          {padronValues.departamento && padronValues.distrito && !isLoadingCandidatos && candidatosParaVotante.length === 0 ? (
+            <div className="flex items-center gap-2 rounded-panel border border-brand-orange/40 bg-brand-orange/10 px-4 py-3 font-body text-sm font-bold text-brand-ink dark:text-orange-50">
+              <AlertCircle aria-hidden="true" size={18} strokeWidth={2.6} />
+              No hay candidatos activos para {padronValues.departamento} / {padronValues.distrito}.
+            </div>
+          ) : null}
+
+          {padronValues.departamento && padronValues.distrito && !isLoadingCandidatos && candidatosParaVotante.length > 0 && !hasIntendenteOptions ? (
+            <div className="flex items-center gap-2 rounded-panel border border-neutral-200 bg-neutral-50 px-4 py-3 font-body text-sm font-bold text-neutral-700 dark:border-brand-line dark:bg-white/[0.06] dark:text-orange-50/75">
+              <ShieldCheck aria-hidden="true" size={18} strokeWidth={2.6} />
+              Este distrito no tiene candidatos a intendente cargados; se registra solo Concejal/Titular.
             </div>
           ) : null}
 
@@ -505,8 +712,10 @@ function RegistroVotantePage() {
         isLoading={isLoadingRecords}
         onClearFilters={handleClearFilters}
         onFilterChange={handleFilterChange}
+        onNotifyWhatsapp={handleNotifyWhatsapp}
         onRefresh={() => void loadVotoSeguroRecords(gridFilters)}
         onSubmitFilters={handleFilterSubmit}
+        notifyingRecordId={notifyingRecordId}
         records={records}
         isAdmin={isAdmin}
         userProfiles={userProfiles}
@@ -523,8 +732,10 @@ interface VotoSeguroGridProps {
   isLoading: boolean;
   onClearFilters: () => void;
   onFilterChange: (field: keyof GridFilters) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
+  onNotifyWhatsapp: (record: VotoSeguroRecord) => void;
   onRefresh: () => void;
   onSubmitFilters: (event: FormEvent<HTMLFormElement>) => void;
+  notifyingRecordId: string | null;
   records: VotoSeguroRecord[];
   userProfiles: UserProfile[];
 }
@@ -537,19 +748,46 @@ function VotoSeguroGrid({
   isLoading,
   onClearFilters,
   onFilterChange,
+  onNotifyWhatsapp,
   onRefresh,
   onSubmitFilters,
+  notifyingRecordId,
   records,
   userProfiles,
 }: VotoSeguroGridProps) {
   const cityOptions = getParaguayCitiesByDepartment(filters.departamento);
+  const columnFilters = useMemo<ColumnFiltersState>(() => {
+    const activeFilters: ColumnFiltersState = [];
+
+    if (filters.cedula.trim() || filters.nombre.trim() || filters.telefono.trim()) {
+      activeFilters.push({
+        id: "votante",
+        value: {
+          cedula: filters.cedula,
+          nombre: filters.nombre,
+          telefono: filters.telefono,
+        },
+      });
+    }
+
+    if (filters.notificacion !== "TODOS") {
+      activeFilters.push({
+        id: "notificacion",
+        value: filters.notificacion,
+      });
+    }
+
+    return activeFilters;
+  }, [filters.cedula, filters.nombre, filters.notificacion, filters.telefono]);
 
   const columns = useMemo<ColumnDef<VotoSeguroRecord>[]>(
     () => {
       const visibleColumns: ColumnDef<VotoSeguroRecord>[] = [
       {
-        accessorKey: "nombreApellido",
+        id: "votante",
+        accessorFn: (record) => `${record.nombreApellido} ${record.cedula} ${record.telefono}`,
         header: "Votante",
+        filterFn: (row, _columnId, filterValue) => matchesVoterColumnFilter(row.original, filterValue),
         cell: ({ row }) => (
           <div className="min-w-52">
             <p className="font-display text-lg leading-tight text-brand-ink dark:text-white">
@@ -572,11 +810,9 @@ function VotoSeguroGrid({
         : []),
       {
         accessorKey: "candidatoNombre",
-        header: "Candidato",
+        header: "Candidatos",
         cell: ({ row }) => (
-          <span className="font-body text-sm font-black text-brand-ink dark:text-white">
-            {candidateLabel(row.original)}
-          </span>
+          <CandidateStack record={row.original} />
         ),
       },
       {
@@ -600,15 +836,33 @@ function VotoSeguroGrid({
         cell: ({ row }) => mesaOrdenLabel(row.original),
       },
       {
+        id: "notificacion",
+        accessorFn: (record) => (record.fueNotificado ? "NOTIFICADOS" : "PENDIENTES"),
+        header: "Notificacion",
+        filterFn: (row, _columnId, filterValue) => matchesNotificationColumnFilter(row.original, filterValue),
+        cell: ({ row }) => <NotificationStatus record={row.original} />,
+      },
+      {
         accessorKey: "createdAt",
         header: "Carga",
         cell: ({ row }) => formatDate(row.original.createdAt),
+      },
+      {
+        id: "actions",
+        header: "Acciones",
+        cell: ({ row }) => (
+          <WhatsappNotifyButton
+            isLoading={notifyingRecordId === row.original.id}
+            onClick={() => onNotifyWhatsapp(row.original)}
+            record={row.original}
+          />
+        ),
       },
       ];
 
       return visibleColumns;
     },
-    [isAdmin],
+    [isAdmin, notifyingRecordId, onNotifyWhatsapp],
   );
 
   return (
@@ -633,7 +887,7 @@ function VotoSeguroGrid({
         </button>
       </div>
 
-      <form className="mt-5 grid gap-3 lg:grid-cols-[1fr_1fr_1fr_0.85fr_0.85fr_auto]" onSubmit={onSubmitFilters}>
+      <form className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" onSubmit={onSubmitFilters}>
         {isAdmin ? (
           <>
             <FilterField label="Usuario">
@@ -666,6 +920,74 @@ function VotoSeguroGrid({
             Mis cargas
           </div>
         )}
+
+        <FilterField label="Nombre">
+          <Search
+            aria-hidden="true"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-orange"
+            size={17}
+            strokeWidth={2.6}
+          />
+          <input
+            className={filterInputClass("pl-10")}
+            onChange={onFilterChange("nombre")}
+            placeholder="Nombre del votante"
+            type="search"
+            value={filters.nombre}
+          />
+        </FilterField>
+
+        <FilterField label="Cedula">
+          <Search
+            aria-hidden="true"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-orange"
+            size={17}
+            strokeWidth={2.6}
+          />
+          <input
+            className={filterInputClass("pl-10")}
+            inputMode="numeric"
+            onChange={onFilterChange("cedula")}
+            placeholder="Buscar cedula"
+            type="search"
+            value={filters.cedula}
+          />
+        </FilterField>
+
+        <FilterField label="Telefono">
+          <Phone
+            aria-hidden="true"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-orange"
+            size={17}
+            strokeWidth={2.6}
+          />
+          <input
+            className={filterInputClass("pl-10")}
+            inputMode="tel"
+            onChange={onFilterChange("telefono")}
+            placeholder="09XXXXXXXX"
+            type="search"
+            value={filters.telefono}
+          />
+        </FilterField>
+
+        <FilterField label="Notificacion">
+          <BellRing
+            aria-hidden="true"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-orange"
+            size={17}
+            strokeWidth={2.6}
+          />
+          <select
+            className={filterInputClass("pl-10")}
+            onChange={onFilterChange("notificacion")}
+            value={filters.notificacion}
+          >
+            <option value="TODOS">Todos</option>
+            <option value="PENDIENTES">Pendientes</option>
+            <option value="NOTIFICADOS">Notificados</option>
+          </select>
+        </FilterField>
 
         <FilterField label="Departamento">
           <select
@@ -745,7 +1067,7 @@ function VotoSeguroGrid({
           />
         </FilterField>
 
-        <div className="grid gap-2 sm:grid-cols-[1fr_auto] lg:grid-cols-1">
+        <div className="grid gap-2 sm:grid-cols-[1fr_auto] xl:grid-cols-1">
           <button
             className="inline-flex min-h-12 items-center justify-center gap-2 rounded-panel bg-brand-orange px-4 py-2 font-body text-sm font-black uppercase text-brand-ink transition hover:bg-orange-500"
             type="submit"
@@ -765,13 +1087,20 @@ function VotoSeguroGrid({
 
       <div className="mt-5">
         <DataGrid
+          columnFilters={columnFilters}
           columns={columns}
           data={records}
           emptyMessage="No hay registros para mostrar."
           getRowKey={(record) => record.id}
           isLoading={isLoading}
           loadingMessage="Cargando Voto Seguro"
-          renderMobileCard={(record) => <VotoSeguroCard record={record} />}
+          renderMobileCard={(record) => (
+            <VotoSeguroCard
+              isNotifying={notifyingRecordId === record.id}
+              onNotifyWhatsapp={onNotifyWhatsapp}
+              record={record}
+            />
+          )}
         />
       </div>
     </section>
@@ -779,10 +1108,12 @@ function VotoSeguroGrid({
 }
 
 interface VotoSeguroCardProps {
+  isNotifying: boolean;
+  onNotifyWhatsapp: (record: VotoSeguroRecord) => void;
   record: VotoSeguroRecord;
 }
 
-function VotoSeguroCard({ record }: VotoSeguroCardProps) {
+function VotoSeguroCard({ isNotifying, onNotifyWhatsapp, record }: VotoSeguroCardProps) {
   return (
     <article className="rounded-panel border border-neutral-200 bg-white/75 p-4 dark:border-brand-line dark:bg-black/[0.16]">
       <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
@@ -801,15 +1132,25 @@ function VotoSeguroCard({ record }: VotoSeguroCardProps) {
       </div>
 
       <div className="mt-4 grid gap-3 text-sm text-neutral-700 dark:text-orange-50/80 md:grid-cols-2 xl:grid-cols-4">
-        <GridMetric label="Candidato" value={candidateLabel(record)} />
+        <GridMetric label="Intendente" value={intendenteLabel(record)} />
+        <GridMetric label="Concejal" value={concejalLabel(record)} />
         <GridMetric label="Territorio" value={territoryLabel(record)} />
         <GridMetric label="Local" value={record.localVotacion || record.local || "-"} />
         <GridMetric label="Mesa / Orden" value={mesaOrdenLabel(record)} />
+        <NotificationStatus record={record} />
       </div>
 
-      <p className="mt-4 font-body text-xs font-black uppercase text-neutral-500 dark:text-orange-100/[0.58]">
-        {formatDate(record.createdAt)} - {loadedByLabel(record)}
-      </p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+        <p className="font-body text-xs font-black uppercase text-neutral-500 dark:text-orange-100/[0.58]">
+          {formatDate(record.createdAt)} - {loadedByLabel(record)}
+        </p>
+        <WhatsappNotifyButton
+          className="w-full sm:w-auto"
+          isLoading={isNotifying}
+          onClick={() => onNotifyWhatsapp(record)}
+          record={record}
+        />
+      </div>
     </article>
   );
 }
@@ -829,6 +1170,94 @@ function GridMetric({ label, value }: GridMetricProps) {
         {value}
       </p>
     </div>
+  );
+}
+
+interface CandidateStackProps {
+  record: VotoSeguroRecord;
+}
+
+function CandidateStack({ record }: CandidateStackProps) {
+  return (
+    <div className="min-w-56 space-y-1.5">
+      {record.intendenteNombre ? (
+        <p className="font-body text-sm font-black text-brand-ink dark:text-white">
+          <span className="text-brand-orange">Intendente:</span> {intendenteLabel(record)}
+        </p>
+      ) : null}
+      <p className="font-body text-sm font-black text-brand-ink dark:text-white">
+        <span className="text-brand-orange">Concejal:</span> {concejalLabel(record)}
+      </p>
+    </div>
+  );
+}
+
+interface NotificationStatusProps {
+  record: VotoSeguroRecord;
+}
+
+function NotificationStatus({ record }: NotificationStatusProps) {
+  const statusClasses = record.fueNotificado
+    ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-300/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+    : "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-300/30 dark:bg-amber-500/10 dark:text-amber-100";
+  const dateLabel = record.fechaRenotificacion
+    ? `Renotificado ${formatDate(record.fechaRenotificacion)}`
+    : record.fechaNotificacion
+    ? `Notificado ${formatDate(record.fechaNotificacion)}`
+    : "Sin aviso";
+
+  return (
+    <div className="min-w-40 space-y-1.5">
+      <span
+        className={[
+          "inline-flex w-fit items-center gap-2 rounded-panel border px-3 py-2 font-body text-xs font-black uppercase",
+          statusClasses,
+        ].join(" ")}
+      >
+        <BellRing aria-hidden="true" size={14} strokeWidth={2.7} />
+        {record.fueNotificado ? "Notificado" : "Pendiente"}
+      </span>
+      <p className="font-body text-xs font-black uppercase text-neutral-500 dark:text-orange-100/[0.58]">
+        {dateLabel}
+      </p>
+    </div>
+  );
+}
+
+interface WhatsappNotifyButtonProps {
+  className?: string;
+  isLoading: boolean;
+  onClick: () => void;
+  record: VotoSeguroRecord;
+}
+
+function WhatsappNotifyButton({
+  className = "",
+  isLoading,
+  onClick,
+  record,
+}: WhatsappNotifyButtonProps) {
+  const label = record.fueNotificado ? "Renotificar" : "WhatsApp";
+
+  return (
+    <button
+      aria-label={`${record.fueNotificado ? "Renotificar" : "Notificar"} a ${record.nombreApellido} por WhatsApp`}
+      className={[
+        "inline-flex min-h-11 items-center justify-center gap-2 rounded-panel bg-emerald-500 px-3 py-2 font-body text-sm font-black uppercase text-white shadow-sm transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60",
+        className,
+      ].join(" ")}
+      disabled={isLoading}
+      onClick={onClick}
+      title={record.fueNotificado ? "Renotificar via WhatsApp" : "Notificar via WhatsApp"}
+      type="button"
+    >
+      {isLoading ? (
+        <Loader2 aria-hidden="true" className="animate-spin" size={16} strokeWidth={2.7} />
+      ) : (
+        <MessageCircle aria-hidden="true" size={16} strokeWidth={2.7} />
+      )}
+      <span>{label}</span>
+    </button>
   );
 }
 
@@ -853,9 +1282,21 @@ function filterInputClass(extra = "") {
   ].join(" ");
 }
 
-function candidateLabel(record: VotoSeguroRecord) {
-  const list = record.candidatoNumeroLista ? `Lista ${record.candidatoNumeroLista}` : "Lista -";
-  return `${record.candidatoNombre} - ${list}`;
+function concejalLabel(record: VotoSeguroRecord) {
+  const name = record.concejalNombre ?? record.candidatoNombre;
+  const list = record.concejalNumeroLista ?? record.candidatoNumeroLista;
+
+  return `${name} - ${list ? `Lista ${list}` : "Lista -"}`;
+}
+
+function intendenteLabel(record: VotoSeguroRecord) {
+  if (!record.intendenteNombre) {
+    return "Sin intendente";
+  }
+
+  return `${record.intendenteNombre} - ${
+    record.intendenteNumeroLista ? `Lista ${record.intendenteNumeroLista}` : "Lista -"
+  }`;
 }
 
 function territoryLabel(record: VotoSeguroRecord) {
@@ -873,6 +1314,98 @@ function loadedByLabel(record: VotoSeguroRecord) {
   const locality = record.loadedByLocalidad ? ` - ${record.loadedByLocalidad}` : "";
 
   return `${userName}${locality}`;
+}
+
+function matchesVoterColumnFilter(record: VotoSeguroRecord, filterValue: unknown) {
+  if (!filterValue || typeof filterValue !== "object") {
+    return true;
+  }
+
+  const typedFilter = filterValue as { cedula?: string; nombre?: string; telefono?: string };
+  const cedulaFilter = normalizeFilterValue(typedFilter.cedula);
+  const nombreFilter = normalizeFilterValue(typedFilter.nombre);
+  const telefonoFilter = normalizeFilterValue(typedFilter.telefono);
+
+  return (
+    (!cedulaFilter || normalizeFilterValue(record.cedula).includes(cedulaFilter)) &&
+    (!nombreFilter || normalizeFilterValue(record.nombreApellido).includes(nombreFilter)) &&
+    (!telefonoFilter || normalizeFilterValue(record.telefono).includes(telefonoFilter))
+  );
+}
+
+function matchesNotificationColumnFilter(record: VotoSeguroRecord, filterValue: unknown) {
+  if (filterValue === "NOTIFICADOS") {
+    return record.fueNotificado;
+  }
+
+  if (filterValue === "PENDIENTES") {
+    return !record.fueNotificado;
+  }
+
+  return true;
+}
+
+function buildWhatsappUrl(record: VotoSeguroRecord) {
+  const phone = normalizeWhatsappPhone(record.telefono);
+  const message = buildWhatsappMessage(record);
+
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}
+
+function buildWhatsappMessage(record: VotoSeguroRecord) {
+  const emojis = {
+    ballot: "\u{1F5F3}\u{FE0F}",
+    heart: "\u{1F9E1}",
+    pin: "\u{1F4CD}",
+    py: "\u{1F1F5}\u{1F1FE}",
+    ticket: "\u{1F39F}\u{FE0F}",
+  };
+  const local = record.localVotacion || record.local || "tu local de votacion";
+
+  return [
+    `${emojis.py} ${record.nombreApellido} - Ya llega el gran dia!! esperamos tu apoyo.`,
+    `${emojis.ballot} Candidatos que elegiste: ${candidateNamesForWhatsapp(record)}.`,
+    `${emojis.pin} Local: ${local}.`,
+    `${emojis.ticket} ${mesaOrdenLabel(record)}.`,
+    `${emojis.heart} Gracias por acompanarnos!`,
+  ].join("\n");
+}
+
+function candidateNamesForWhatsapp(record: VotoSeguroRecord) {
+  return [
+    record.intendenteNombre ? `Intendente: ${record.intendenteNombre}` : "",
+    `Concejal: ${record.concejalNombre ?? record.candidatoNombre}`,
+  ]
+    .filter(Boolean)
+    .join(" | ");
+}
+
+function normalizeWhatsappPhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+
+  if (digits.startsWith("595") && digits.length >= 12) {
+    return digits;
+  }
+
+  if (digits.startsWith("0") && digits.length >= 10) {
+    return `595${digits.slice(1)}`;
+  }
+
+  if (digits.startsWith("9") && digits.length === 9) {
+    return `595${digits}`;
+  }
+
+  throw new Error("El telefono no tiene formato paraguayo valido para WhatsApp.");
+}
+
+function normalizeFilterValue(value?: string) {
+  return (
+    value
+      ?.normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toUpperCase() ?? ""
+  );
 }
 
 function formatDate(value?: string) {

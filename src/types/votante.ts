@@ -41,7 +41,8 @@ export interface Votante {
   local: string;
   telefono: string;
   ubicacion?: Ubicacion;
-  candidatoId: string;
+  candidatoConcejalId: string;
+  candidatoIntendenteId?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -54,7 +55,8 @@ export interface RegistroVotanteFormValues {
   zona: string;
   local: string;
   telefono: string;
-  candidatoId: string;
+  candidatoConcejalId: string;
+  candidatoIntendenteId: string;
   ubicacion?: Ubicacion;
 }
 

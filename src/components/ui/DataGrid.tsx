@@ -1,13 +1,16 @@
 import {
   flexRender,
   getCoreRowModel,
+  getFilteredRowModel,
   useReactTable,
+  type ColumnFiltersState,
   type ColumnDef,
 } from "@tanstack/react-table";
 import { Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 interface DataGridProps<TData> {
+  columnFilters?: ColumnFiltersState;
   columns: ColumnDef<TData>[];
   data: TData[];
   emptyMessage: string;
@@ -18,6 +21,7 @@ interface DataGridProps<TData> {
 }
 
 function DataGrid<TData>({
+  columnFilters = [],
   columns,
   data,
   emptyMessage,
@@ -29,8 +33,14 @@ function DataGrid<TData>({
   const table = useReactTable({
     columns,
     data,
+    getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
+    state: {
+      columnFilters,
+    },
   });
+
+  const rows = table.getRowModel().rows;
 
   if (isLoading) {
     return (
@@ -41,7 +51,7 @@ function DataGrid<TData>({
     );
   }
 
-  if (data.length === 0) {
+  if (rows.length === 0) {
     return (
       <div className="rounded-panel border border-neutral-200 bg-white/70 p-4 font-body font-black text-neutral-600 dark:border-brand-line dark:bg-black/[0.16] dark:text-orange-50/70">
         {emptyMessage}
@@ -52,8 +62,8 @@ function DataGrid<TData>({
   return (
     <>
       <div className="grid gap-3 lg:hidden">
-        {data.map((row) => (
-          <div key={getRowKey(row)}>{renderMobileCard(row)}</div>
+        {rows.map((row) => (
+          <div key={getRowKey(row.original)}>{renderMobileCard(row.original)}</div>
         ))}
       </div>
 
@@ -76,7 +86,7 @@ function DataGrid<TData>({
             ))}
           </thead>
           <tbody>
-            {table.getRowModel().rows.map((row) => (
+            {rows.map((row) => (
               <tr
                 className="border-b border-neutral-200 last:border-0 dark:border-brand-line"
                 key={row.id}
