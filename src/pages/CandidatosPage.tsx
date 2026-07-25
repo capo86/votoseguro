@@ -3,14 +3,18 @@ import {
 } from "@tanstack/react-table";
 import {
   Edit3,
+  FileSpreadsheet,
+  FileText,
+  FilterX,
   ImageUp,
   Loader2,
   MapPin,
   Plus,
   Save,
+  Search,
+  SlidersHorizontal,
   Trash2,
   UserRound,
-  UsersRound,
   Vote,
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
@@ -25,6 +29,7 @@ import {
   type CandidatoFormValues,
 } from "../lib/candidatosApi";
 import { uploadCandidatePhoto } from "../lib/candidatePhotosApi";
+import { exportCandidatesToExcel, exportCandidatesToPdf } from "../lib/candidateReportExport";
 import {
   PARAGUAY_DEPARTMENTS,
   findParaguayCityName,
@@ -33,7 +38,7 @@ import {
 } from "../data/paraguayTerritories";
 import { filterCandidatosForProfile } from "../lib/candidateTerritory";
 import { useAppStore } from "../store/appStore";
-import type { Candidato } from "../types/candidato";
+import type { Candidato, CandidatoTipoCodigo } from "../types/candidato";
 
 const initialForm: CandidatoFormValues = {
   nombreCandidato: "",
@@ -51,12 +56,16 @@ function CandidatosPage() {
   const profile = useAppStore((state) => state.profile);
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
   const [candidateToDelete, setCandidateToDelete] = useState<Candidato | null>(null);
+  const [candidateSearch, setCandidateSearch] = useState("");
   const [form, setForm] = useState<CandidatoFormValues>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [estadoFilter, setEstadoFilter] = useState<"TODOS" | "ACTIVOS" | "INACTIVOS">("TODOS");
+  const [exportingReport, setExportingReport] = useState<"pdf" | "excel" | null>(null);
   const [feedback, setFeedback] = useState("Modulo de candidatos listo.");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [tipoFilter, setTipoFilter] = useState<"TODOS" | CandidatoTipoCodigo>("TODOS");
   const [successAlert, setSuccessAlert] = useState<{
     details: SuccessModalDetail[];
     summary: string;
@@ -66,6 +75,34 @@ function CandidatosPage() {
   const isAdmin = profile?.role === "admin";
   const createdByUser = profile?.nombreApellido ?? "usuario activo";
   const cityOptions = getParaguayCitiesByDepartment(form.departamento);
+  const filteredCandidatos = useMemo(() => {
+    const search = normalizeFilterValue(candidateSearch);
+
+    return candidatos.filter((candidato) => {
+      const matchesSearch =
+        !search ||
+        [
+          candidato.nombreCandidato,
+          candidato.tipo.nombre,
+          candidato.cargo,
+          candidato.numeroLista,
+          candidato.departamento,
+          candidato.ciudad,
+          candidato.localidad,
+          candidato.observaciones,
+        ].some((value) => normalizeFilterValue(value).includes(search));
+      const matchesTipo = tipoFilter === "TODOS" || candidato.tipo.codigo === tipoFilter;
+      const matchesEstado =
+        estadoFilter === "TODOS" ||
+        (estadoFilter === "ACTIVOS" && candidato.activo) ||
+        (estadoFilter === "INACTIVOS" && !candidato.activo);
+
+      return matchesSearch && matchesTipo && matchesEstado;
+    });
+  }, [candidatos, candidateSearch, estadoFilter, tipoFilter]);
+  const hasActiveListFilters =
+    Boolean(candidateSearch.trim()) || tipoFilter !== "TODOS" || estadoFilter !== "TODOS";
+  const canExportList = filteredCandidatos.length > 0 && !isLoading && !exportingReport;
 
   useEffect(() => {
     let isMounted = true;
@@ -271,6 +308,37 @@ function CandidatosPage() {
       setFeedback(error instanceof Error ? error.message : "No se pudo eliminar candidato.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const clearListFilters = () => {
+    setCandidateSearch("");
+    setTipoFilter("TODOS");
+    setEstadoFilter("TODOS");
+    setFeedback("Filtros limpios.");
+  };
+
+  const handleExport = async (format: "pdf" | "excel") => {
+    if (!filteredCandidatos.length) {
+      setFeedback("No hay candidatos para exportar.");
+      return;
+    }
+
+    setExportingReport(format);
+    setFeedback(format === "pdf" ? "Generando PDF." : "Generando Excel.");
+
+    try {
+      if (format === "pdf") {
+        await exportCandidatesToPdf(filteredCandidatos);
+      } else {
+        await exportCandidatesToExcel(filteredCandidatos);
+      }
+
+      setFeedback(format === "pdf" ? "PDF generado." : "Excel generado.");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "No se pudo generar el reporte.");
+    } finally {
+      setExportingReport(null);
     }
   };
 
@@ -564,22 +632,116 @@ function CandidatosPage() {
       )}
 
       <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.9] p-4 shadow-panel backdrop-blur sm:p-6 dark:border-brand-line dark:bg-neutral-900/[0.92]">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="font-body text-xs font-black uppercase text-brand-orange">Listado</p>
             <h3 className="font-display text-2xl text-brand-ink dark:text-white">
               Candidatos cargados
             </h3>
+            <p className="mt-1 font-body text-sm font-black text-neutral-600 dark:text-orange-50/70">
+              {isLoading
+                ? "Cargando registros"
+                : `${filteredCandidatos.length} de ${candidatos.length} registros`}
+            </p>
           </div>
-          <UsersRound aria-hidden="true" className="text-brand-orange" size={28} strokeWidth={2.7} />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-sm font-black uppercase text-brand-ink transition hover:border-brand-orange hover:text-brand-orange disabled:cursor-not-allowed disabled:opacity-55 dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
+              disabled={!canExportList}
+              onClick={() => handleExport("pdf")}
+              title="Descargar PDF"
+              type="button"
+            >
+              {exportingReport === "pdf" ? (
+                <Loader2 aria-hidden="true" className="animate-spin" size={16} strokeWidth={2.7} />
+              ) : (
+                <FileText aria-hidden="true" size={16} strokeWidth={2.7} />
+              )}
+              PDF
+            </button>
+            <button
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-panel bg-brand-orange px-3 py-2 font-body text-sm font-black uppercase text-brand-ink shadow-action transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-55 disabled:shadow-none"
+              disabled={!canExportList}
+              onClick={() => handleExport("excel")}
+              title="Descargar Excel"
+              type="button"
+            >
+              {exportingReport === "excel" ? (
+                <Loader2 aria-hidden="true" className="animate-spin" size={16} strokeWidth={2.7} />
+              ) : (
+                <FileSpreadsheet aria-hidden="true" size={16} strokeWidth={2.7} />
+              )}
+              Excel
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 rounded-panel border border-neutral-200 bg-white/65 p-3 dark:border-brand-line dark:bg-black/[0.16] lg:grid-cols-[minmax(16rem,1fr)_12rem_12rem_auto] lg:items-end">
+          <label className="space-y-2 text-sm font-semibold text-neutral-700 dark:text-orange-50/80">
+            <span className="inline-flex items-center gap-2">
+              <Search aria-hidden="true" className="text-brand-orange" size={15} strokeWidth={2.7} />
+              Busqueda
+            </span>
+            <input
+              className="min-h-11 w-full rounded-panel border border-neutral-300 border-l-4 border-l-brand-orange bg-white px-3 py-2 font-body text-base font-black text-brand-ink outline-none focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 dark:bg-brand-field"
+              onChange={(event) => setCandidateSearch(event.target.value)}
+              placeholder="Nombre, lista o territorio"
+              type="search"
+              value={candidateSearch}
+            />
+          </label>
+
+          <label className="space-y-2 text-sm font-semibold text-neutral-700 dark:text-orange-50/80">
+            <span className="inline-flex items-center gap-2">
+              <SlidersHorizontal aria-hidden="true" className="text-brand-orange" size={15} strokeWidth={2.7} />
+              Tipo
+            </span>
+            <select
+              className="min-h-11 w-full rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-base font-black text-brand-ink outline-none focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 dark:bg-brand-field"
+              onChange={(event) => setTipoFilter(event.target.value as "TODOS" | CandidatoTipoCodigo)}
+              value={tipoFilter}
+            >
+              <option value="TODOS">Todos</option>
+              <option value="PPC">PPC</option>
+              <option value="ALIANZA">Alianza</option>
+            </select>
+          </label>
+
+          <label className="space-y-2 text-sm font-semibold text-neutral-700 dark:text-orange-50/80">
+            <span>Estado</span>
+            <select
+              className="min-h-11 w-full rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-base font-black text-brand-ink outline-none focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 dark:bg-brand-field"
+              onChange={(event) =>
+                setEstadoFilter(event.target.value as "TODOS" | "ACTIVOS" | "INACTIVOS")
+              }
+              value={estadoFilter}
+            >
+              <option value="TODOS">Todos</option>
+              <option value="ACTIVOS">Activos</option>
+              <option value="INACTIVOS">Inactivos</option>
+            </select>
+          </label>
+
+          <button
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-sm font-black uppercase text-brand-ink transition hover:border-brand-orange hover:text-brand-orange disabled:cursor-not-allowed disabled:opacity-55 dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
+            disabled={!hasActiveListFilters}
+            onClick={clearListFilters}
+            type="button"
+          >
+            <FilterX aria-hidden="true" size={16} strokeWidth={2.7} />
+            Limpiar
+          </button>
         </div>
 
         <div className="mt-5">
           <DataGrid
             columns={columns}
-            data={candidatos}
+            data={filteredCandidatos}
             emptyMessage={
-              isAdmin
+              hasActiveListFilters
+                ? "No hay candidatos para esos filtros."
+                : isAdmin
                 ? "Todavia no hay candidatos. Carga el primero arriba."
                 : "Todavia no hay candidatos activos para tu territorio."
             }
@@ -759,6 +921,16 @@ function formatDate(value?: string) {
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function normalizeFilterValue(value?: string) {
+  return (
+    value
+      ?.normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toUpperCase() ?? ""
+  );
 }
 
 export default CandidatosPage;
