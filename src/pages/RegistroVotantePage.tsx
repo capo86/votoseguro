@@ -1373,11 +1373,20 @@ function buildWhatsappMessage(record: VotoSeguroRecord) {
 
 function candidateNamesForWhatsapp(record: VotoSeguroRecord) {
   return [
-    record.intendenteNombre ? `Intendente: ${record.intendenteNombre}` : "",
-    `Concejal: ${record.concejalNombre ?? record.candidatoNombre}`,
+    record.intendenteNombre
+      ? `Intendente: ${candidateNameWithList(record.intendenteNombre, record.intendenteNumeroLista)}`
+      : "",
+    `Concejal: ${candidateNameWithList(
+      record.concejalNombre ?? record.candidatoNombre,
+      record.concejalNumeroLista ?? record.candidatoNumeroLista,
+    )}`,
   ]
     .filter(Boolean)
     .join(" | ");
+}
+
+function candidateNameWithList(name: string, list?: string) {
+  return `${name}${list ? ` - Lista ${list}` : ""}`;
 }
 
 function normalizeWhatsappPhone(value: string) {
