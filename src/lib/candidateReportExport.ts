@@ -65,30 +65,18 @@ export async function exportCandidatesToPdf(candidatos: Candidato[]) {
 
 export async function exportCandidatesToExcel(candidatos: Candidato[]) {
   const generatedAt = new Date();
-  const logoBlob = await loadLogoBlob();
-  const hasLogo = Boolean(logoBlob);
   const zipFiles: ZipFileInput[] = [
-    { data: buildContentTypesXml(hasLogo), path: "[Content_Types].xml" },
+    { data: buildContentTypesXml(), path: "[Content_Types].xml" },
     { data: buildRootRelsXml(), path: "_rels/.rels" },
     { data: buildAppPropertiesXml(), path: "docProps/app.xml" },
     { data: buildCorePropertiesXml(generatedAt), path: "docProps/core.xml" },
     { data: buildWorkbookXml(), path: "xl/workbook.xml" },
     { data: buildWorkbookRelsXml(), path: "xl/_rels/workbook.xml.rels" },
-    { data: buildStylesXml(), path: "xl/styles.xml" },
     {
-      data: buildWorksheetXml(candidatos, generatedAt, hasLogo),
+      data: buildWorksheetXml(candidatos, generatedAt),
       path: "xl/worksheets/sheet1.xml",
     },
   ];
-
-  if (logoBlob) {
-    zipFiles.push(
-      { data: buildWorksheetRelsXml(), path: "xl/worksheets/_rels/sheet1.xml.rels" },
-      { data: buildDrawingXml(), path: "xl/drawings/drawing1.xml" },
-      { data: buildDrawingRelsXml(), path: "xl/drawings/_rels/drawing1.xml.rels" },
-      { data: await logoBlob.arrayBuffer(), path: "xl/media/logo.png" },
-    );
-  }
 
   downloadBlob(
     createZipBlob(zipFiles, generatedAt),
@@ -214,18 +202,15 @@ function hexToRgb(hex: string): [number, number, number] {
   ];
 }
 
-function buildContentTypesXml(hasLogo: boolean) {
+function buildContentTypesXml() {
   return xmlHeader(`\
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
-  ${hasLogo ? '<Default Extension="png" ContentType="image/png"/>' : ""}
   <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
-  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
-  ${hasLogo ? '<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>' : ""}
 </Types>`);
 }
 
@@ -271,107 +256,14 @@ function buildWorkbookRelsXml() {
   return xmlHeader(`\
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 </Relationships>`);
 }
 
-function buildWorksheetRelsXml() {
-  return xmlHeader(`\
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>
-</Relationships>`);
-}
-
-function buildDrawingRelsXml() {
-  return xmlHeader(`\
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/logo.png"/>
-</Relationships>`);
-}
-
-function buildDrawingXml() {
-  return xmlHeader(`\
-<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <xdr:oneCellAnchor>
-    <xdr:from>
-      <xdr:col>0</xdr:col>
-      <xdr:colOff>95250</xdr:colOff>
-      <xdr:row>0</xdr:row>
-      <xdr:rowOff>95250</xdr:rowOff>
-    </xdr:from>
-    <xdr:ext cx="628650" cy="628650"/>
-    <xdr:pic>
-      <xdr:nvPicPr>
-        <xdr:cNvPr id="1" name="Logo PPC"/>
-        <xdr:cNvPicPr>
-          <a:picLocks noChangeAspect="1"/>
-        </xdr:cNvPicPr>
-      </xdr:nvPicPr>
-      <xdr:blipFill>
-        <a:blip r:embed="rId1"/>
-        <a:stretch>
-          <a:fillRect/>
-        </a:stretch>
-      </xdr:blipFill>
-      <xdr:spPr>
-        <a:prstGeom prst="rect">
-          <a:avLst/>
-        </a:prstGeom>
-      </xdr:spPr>
-    </xdr:pic>
-    <xdr:clientData/>
-  </xdr:oneCellAnchor>
-</xdr:wsDr>`);
-}
-
-function buildStylesXml() {
-  return xmlHeader(`\
-<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <fonts count="5">
-    <font><sz val="10"/><color rgb="FF151413"/><name val="Source Sans 3"/></font>
-    <font><b/><sz val="18"/><color rgb="FF151413"/><name val="Arial"/></font>
-    <font><b/><sz val="11"/><color rgb="FF4B443D"/><name val="Arial"/></font>
-    <font><b/><sz val="10"/><color rgb="FF6A6258"/><name val="Arial"/></font>
-    <font><b/><sz val="10"/><color rgb="FF151413"/><name val="Arial"/></font>
-  </fonts>
-  <fills count="3">
-    <fill><patternFill patternType="none"/></fill>
-    <fill><patternFill patternType="gray125"/></fill>
-    <fill><patternFill patternType="solid"><fgColor rgb="FFF2820C"/><bgColor indexed="64"/></patternFill></fill>
-  </fills>
-  <borders count="3">
-    <border><left/><right/><top/><bottom/><diagonal/></border>
-    <border><left/><right/><top/><bottom style="thin"><color rgb="FF151413"/></bottom/><diagonal/></border>
-    <border><left/><right/><top/><bottom style="thin"><color rgb="FFE8DFD4"/></bottom/><diagonal/></border>
-  </borders>
-  <cellStyleXfs count="1">
-    <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
-  </cellStyleXfs>
-  <cellXfs count="6">
-    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
-    <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>
-    <xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>
-    <xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>
-    <xf numFmtId="0" fontId="4" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1">
-      <alignment vertical="center"/>
-    </xf>
-    <xf numFmtId="0" fontId="0" fillId="0" borderId="2" xfId="0" applyFont="1" applyBorder="1">
-      <alignment vertical="top" wrapText="1"/>
-    </xf>
-  </cellXfs>
-  <cellStyles count="1">
-    <cellStyle name="Normal" xfId="0" builtinId="0"/>
-  </cellStyles>
-  <dxfs count="0"/>
-  <tableStyles count="0" defaultTableStyle="TableStyleMedium2" defaultPivotStyle="PivotStyleLight16"/>
-</styleSheet>`);
-}
-
-function buildWorksheetXml(candidatos: Candidato[], generatedAt: Date, hasLogo: boolean) {
+function buildWorksheetXml(candidatos: Candidato[], generatedAt: Date) {
   const lastRow = Math.max(5, candidatos.length + 5);
 
   return xmlHeader(`\
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <dimension ref="A1:H${lastRow}"/>
   <sheetViews>
     <sheetView workbookViewId="0">
@@ -391,30 +283,24 @@ function buildWorksheetXml(candidatos: Candidato[], generatedAt: Date, hasLogo: 
     <col min="8" max="8" width="12" customWidth="1"/>
   </cols>
   <sheetData>
-    <row r="1" ht="24" customHeight="1">${textCell("B1", REPORT_TITLE, 1)}</row>
-    <row r="2" ht="18" customHeight="1">${textCell("B2", REPORT_SUBTITLE, 2)}</row>
-    <row r="3" ht="18" customHeight="1">${textCell("B3", `Generado: ${formatReportDateTime(generatedAt)} | Registros: ${candidatos.length}`, 3)}</row>
+    <row r="1" ht="24" customHeight="1">${textCell("A1", REPORT_SUBTITLE)}</row>
+    <row r="2" ht="24" customHeight="1">${textCell("A2", REPORT_TITLE)}</row>
+    <row r="3" ht="18" customHeight="1">${textCell("A3", `Generado: ${formatReportDateTime(generatedAt)} | Registros: ${candidatos.length}`)}</row>
     <row r="4" ht="8" customHeight="1"/>
     <row r="5" ht="23" customHeight="1">${REPORT_COLUMNS.map((column, index) =>
-      textCell(`${columnName(index + 1)}5`, column, 4),
+      textCell(`${columnName(index + 1)}5`, column),
     ).join("")}</row>
     ${candidatos.map((candidato, index) => buildCandidateWorksheetRow(candidato, index + 6)).join("")}
   </sheetData>
   <autoFilter ref="A5:H${lastRow}"/>
-  <mergeCells count="3">
-    <mergeCell ref="B1:H1"/>
-    <mergeCell ref="B2:H2"/>
-    <mergeCell ref="B3:H3"/>
-  </mergeCells>
   <pageMargins left="0.3" right="0.3" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>
   <pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>
-  ${hasLogo ? '<drawing r:id="rId1"/>' : ""}
 </worksheet>`);
 }
 
 function buildCandidateWorksheetRow(candidato: Candidato, rowNumber: number) {
   return `<row r="${rowNumber}">${candidateToReportRow(candidato)
-    .map((value, index) => textCell(`${columnName(index + 1)}${rowNumber}`, value, 5))
+    .map((value, index) => textCell(`${columnName(index + 1)}${rowNumber}`, value))
     .join("")}</row>`;
 }
 
@@ -578,8 +464,8 @@ function buildCrcTable() {
 
 const CRC_TABLE = buildCrcTable();
 
-function textCell(reference: string, value: string, styleId: number) {
-  return `<c r="${reference}" t="inlineStr" s="${styleId}"><is><t>${escapeXml(value)}</t></is></c>`;
+function textCell(reference: string, value: string) {
+  return `<c r="${reference}" t="inlineStr"><is><t>${escapeXml(value)}</t></is></c>`;
 }
 
 function columnName(index: number) {
