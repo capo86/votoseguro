@@ -1,13 +1,18 @@
 import {
+  getPaginationRowModel,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   useReactTable,
   type ColumnFiltersState,
   type ColumnDef,
+  type PaginationState,
 } from "@tanstack/react-table";
-import { Loader2 } from "lucide-react";
-import type { ReactNode } from "react";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+
+const DEFAULT_PAGE_SIZE = 25;
+const EMPTY_COLUMN_FILTERS: ColumnFiltersState = [];
 
 interface DataGridProps<TData> {
   columnFilters?: ColumnFiltersState;
@@ -21,7 +26,7 @@ interface DataGridProps<TData> {
 }
 
 function DataGrid<TData>({
-  columnFilters = [],
+  columnFilters = EMPTY_COLUMN_FILTERS,
   columns,
   data,
   emptyMessage,
@@ -30,17 +35,34 @@ function DataGrid<TData>({
   loadingMessage,
   renderMobileCard,
 }: DataGridProps<TData>) {
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: DEFAULT_PAGE_SIZE,
+  });
+
   const table = useReactTable({
     columns,
     data,
-    getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    onPaginationChange: setPagination,
     state: {
       columnFilters,
+      pagination,
     },
   });
 
   const rows = table.getRowModel().rows;
+  const totalRows = table.getFilteredRowModel().rows.length;
+  const firstRow = totalRows === 0 ? 0 : pagination.pageIndex * pagination.pageSize + 1;
+  const lastRow = Math.min(totalRows, firstRow + rows.length - 1);
+
+  useEffect(() => {
+    setPagination((current) =>
+      current.pageIndex === 0 ? current : { ...current, pageIndex: 0 },
+    );
+  }, [columnFilters, data]);
 
   if (isLoading) {
     return (
@@ -104,6 +126,37 @@ function DataGrid<TData>({
           </tbody>
         </table>
       </div>
+
+      {totalRows > pagination.pageSize ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-panel border border-neutral-200 bg-white/70 px-3 py-2 font-body text-sm font-black text-neutral-600 dark:border-brand-line dark:bg-black/[0.16] dark:text-orange-50/75">
+          <span>
+            {firstRow}-{lastRow} de {totalRows.toLocaleString("es-PY")}
+          </span>
+          <div className="inline-flex items-center gap-2">
+            <button
+              aria-label="Pagina anterior"
+              className="grid h-10 w-10 place-items-center rounded-panel border border-neutral-300 bg-white text-brand-ink transition hover:border-brand-orange hover:text-brand-orange disabled:cursor-not-allowed disabled:opacity-40 dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
+              disabled={!table.getCanPreviousPage()}
+              onClick={() => table.previousPage()}
+              type="button"
+            >
+              <ChevronLeft aria-hidden="true" size={18} strokeWidth={2.7} />
+            </button>
+            <span className="min-w-16 text-center">
+              {pagination.pageIndex + 1} / {table.getPageCount()}
+            </span>
+            <button
+              aria-label="Pagina siguiente"
+              className="grid h-10 w-10 place-items-center rounded-panel border border-neutral-300 bg-white text-brand-ink transition hover:border-brand-orange hover:text-brand-orange disabled:cursor-not-allowed disabled:opacity-40 dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
+              disabled={!table.getCanNextPage()}
+              onClick={() => table.nextPage()}
+              type="button"
+            >
+              <ChevronRight aria-hidden="true" size={18} strokeWidth={2.7} />
+            </button>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

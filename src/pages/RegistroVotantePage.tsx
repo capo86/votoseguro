@@ -20,12 +20,21 @@ import {
   type ColumnFiltersState,
   type ColumnDef,
 } from "@tanstack/react-table";
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import CandidatoSelect from "../components/form/CandidatoSelect";
 import CedulaLookupField from "../components/form/CedulaLookupField";
-import LocationPickerMap from "../components/form/LocationPickerMap";
 import PadronReadonlyFields from "../components/form/PadronReadonlyFields";
 import PhoneField from "../components/form/PhoneField";
 import AlertModal, { type AlertModalDetail } from "../components/ui/AlertModal";
@@ -46,7 +55,6 @@ import {
   VotoSeguroDuplicateError,
   type VotoSeguroRecord,
 } from "../lib/votoSeguroApi";
-import { exportVotoSeguroToExcel, exportVotoSeguroToPdf } from "../lib/votoSeguroReportExport";
 import { useAppStore } from "../store/appStore";
 import type { Candidato } from "../types/candidato";
 import type { UserProfile } from "../types/userProfile";
@@ -118,6 +126,8 @@ interface DuplicateAlertState {
 }
 
 type GridFilters = typeof initialGridFilters;
+
+const LocationPickerMap = lazy(() => import("../components/form/LocationPickerMap"));
 
 function RegistroVotantePage() {
   const padronLookup = usePadronLookup();
@@ -676,11 +686,13 @@ function RegistroVotantePage() {
             </div>
           ) : null}
 
-          <LocationPickerMap
-            error={errors.ubicacion?.message}
-            onChange={handleLocationChange}
-            value={ubicacion}
-          />
+          <Suspense fallback={<LocationMapFallback error={errors.ubicacion?.message} />}>
+            <LocationPickerMap
+              error={errors.ubicacion?.message}
+              onChange={handleLocationChange}
+              value={ubicacion}
+            />
+          </Suspense>
 
           <div className="grid gap-3 border-t border-neutral-200 pt-5 sm:grid-cols-[1fr_auto] sm:items-center dark:border-brand-line">
             <div className="min-h-6 font-body text-sm font-semibold">
@@ -724,6 +736,36 @@ function RegistroVotantePage() {
         userProfiles={userProfiles}
       />
     </section>
+  );
+}
+
+interface LocationMapFallbackProps {
+  error?: string;
+}
+
+function LocationMapFallback({ error }: LocationMapFallbackProps) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="font-body text-xs font-black uppercase text-neutral-600 dark:text-orange-100/80">
+          Ubicacion
+        </p>
+        <p className="font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
+          Preparando mapa territorial.
+        </p>
+      </div>
+      <div className="grid h-72 place-items-center rounded-panel border border-neutral-200 bg-white/70 p-4 text-center font-body text-sm font-black text-brand-ink shadow-panel dark:border-brand-line dark:bg-black/[0.16] dark:text-white">
+        <span className="inline-flex items-center gap-2">
+          <Loader2 aria-hidden="true" className="animate-spin text-brand-orange" size={18} />
+          Cargando mapa
+        </span>
+      </div>
+      {error ? (
+        <p className="font-body text-sm font-semibold text-red-700 dark:text-red-200">
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -809,6 +851,10 @@ function VotoSeguroGrid({
     setReportFeedback(format === "pdf" ? "Generando PDF." : "Generando Excel.");
 
     try {
+      const { exportVotoSeguroToExcel, exportVotoSeguroToPdf } = await import(
+        "../lib/votoSeguroReportExport"
+      );
+
       if (format === "pdf") {
         await exportVotoSeguroToPdf(visibleRecordsForExport, { scopeLabel });
       } else {

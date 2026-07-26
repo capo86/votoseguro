@@ -1,5 +1,3 @@
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import type { Candidato } from "../types/candidato";
 
 const REPORT_TITLE = "LISTADO DE CANDIDATOS";
@@ -24,6 +22,11 @@ const REPORT_COLUMNS = [
 ] as const;
 
 export async function exportCandidatesToPdf(candidatos: Candidato[]) {
+  const [{ jsPDF }, autoTableModule] = await Promise.all([
+    import("jspdf"),
+    import("jspdf-autotable"),
+  ]);
+  const autoTable = autoTableModule.default;
   const generatedAt = new Date();
   const logoDataUrl = await loadLogoDataUrl();
   const doc = new jsPDF({ format: "a4", orientation: "landscape", unit: "pt" });

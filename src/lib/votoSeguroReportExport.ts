@@ -1,5 +1,3 @@
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import type { VotoSeguroRecord } from "./votoSeguroApi";
 
 const REPORT_TITLE = "LISTADO DE VOTO SEGURO";
@@ -34,6 +32,11 @@ export async function exportVotoSeguroToPdf(
   records: VotoSeguroRecord[],
   options: VotoSeguroReportOptions,
 ) {
+  const [{ jsPDF }, autoTableModule] = await Promise.all([
+    import("jspdf"),
+    import("jspdf-autotable"),
+  ]);
+  const autoTable = autoTableModule.default;
   const generatedAt = new Date();
   const logoDataUrl = await loadLogoDataUrl();
   const doc = new jsPDF({ format: "a4", orientation: "landscape", unit: "pt" });

@@ -59,6 +59,15 @@ export default defineConfig({
       registerType: "autoUpdate",
       workbox: {
         cleanupOutdatedCaches: true,
+        globIgnores: [
+          "**/html2canvas-*.js",
+          "**/index.es-*.js",
+          "**/jspdf*.js",
+          "**/LocationPickerMap-*.js",
+          "**/PanelPage-*.js",
+          "**/purify*.js",
+          "**/*ReportExport-*.js",
+        ],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,woff2}"],
         navigateFallback: "/index.html",
         runtimeCaching: [],

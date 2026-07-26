@@ -29,7 +29,6 @@ import {
   type CandidatoFormValues,
 } from "../lib/candidatosApi";
 import { uploadCandidatePhoto } from "../lib/candidatePhotosApi";
-import { exportCandidatesToExcel, exportCandidatesToPdf } from "../lib/candidateReportExport";
 import {
   PARAGUAY_DEPARTMENTS,
   findParaguayCityName,
@@ -329,6 +328,10 @@ function CandidatosPage() {
     setReportFeedback(format === "pdf" ? "Generando PDF." : "Generando Excel.");
 
     try {
+      const { exportCandidatesToExcel, exportCandidatesToPdf } = await import(
+        "../lib/candidateReportExport"
+      );
+
       if (format === "pdf") {
         await exportCandidatesToPdf(filteredCandidatos);
       } else {
