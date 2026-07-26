@@ -4,6 +4,8 @@ import {
   BellRing,
   CalendarDays,
   CheckCircle2,
+  FileSpreadsheet,
+  FileText,
   Filter,
   Loader2,
   MessageCircle,
@@ -44,6 +46,7 @@ import {
   VotoSeguroDuplicateError,
   type VotoSeguroRecord,
 } from "../lib/votoSeguroApi";
+import { exportVotoSeguroToExcel, exportVotoSeguroToPdf } from "../lib/votoSeguroReportExport";
 import { useAppStore } from "../store/appStore";
 import type { Candidato } from "../types/candidato";
 import type { UserProfile } from "../types/userProfile";
@@ -756,6 +759,8 @@ function VotoSeguroGrid({
   userProfiles,
 }: VotoSeguroGridProps) {
   const cityOptions = getParaguayCitiesByDepartment(filters.departamento);
+  const [exportingReport, setExportingReport] = useState<"pdf" | "excel" | null>(null);
+  const [reportFeedback, setReportFeedback] = useState("Reportes listos.");
   const columnFilters = useMemo<ColumnFiltersState>(() => {
     const activeFilters: ColumnFiltersState = [];
 
@@ -779,6 +784,44 @@ function VotoSeguroGrid({
 
     return activeFilters;
   }, [filters.cedula, filters.nombre, filters.notificacion, filters.telefono]);
+  const visibleRecordsForExport = useMemo(
+    () =>
+      records.filter(
+        (record) =>
+          matchesVoterColumnFilter(record, {
+            cedula: filters.cedula,
+            nombre: filters.nombre,
+            telefono: filters.telefono,
+          }) && matchesNotificationColumnFilter(record, filters.notificacion),
+      ),
+    [filters.cedula, filters.nombre, filters.notificacion, filters.telefono, records],
+  );
+  const canExportReports = visibleRecordsForExport.length > 0 && !isLoading && !exportingReport;
+  const scopeLabel = isAdmin ? "Admin" : "Referente";
+
+  const handleExportReport = async (format: "pdf" | "excel") => {
+    if (!visibleRecordsForExport.length) {
+      setReportFeedback("No hay registros para exportar.");
+      return;
+    }
+
+    setExportingReport(format);
+    setReportFeedback(format === "pdf" ? "Generando PDF." : "Generando Excel.");
+
+    try {
+      if (format === "pdf") {
+        await exportVotoSeguroToPdf(visibleRecordsForExport, { scopeLabel });
+      } else {
+        await exportVotoSeguroToExcel(visibleRecordsForExport, { scopeLabel });
+      }
+
+      setReportFeedback(format === "pdf" ? "PDF generado." : "Excel generado.");
+    } catch (error) {
+      setReportFeedback(getReportErrorMessage(error, format));
+    } finally {
+      setExportingReport(null);
+    }
+  };
 
   const columns = useMemo<ColumnDef<VotoSeguroRecord>[]>(
     () => {
@@ -877,15 +920,52 @@ function VotoSeguroGrid({
             {feedback}
           </p>
         </div>
-        <button
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-sm font-black uppercase text-brand-ink transition hover:border-brand-orange hover:text-brand-orange dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
-          onClick={onRefresh}
-          type="button"
-        >
-          <RefreshCcw aria-hidden="true" size={16} strokeWidth={2.7} />
-          Actualizar
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-sm font-black uppercase text-brand-ink transition hover:border-brand-orange hover:text-brand-orange disabled:cursor-not-allowed disabled:opacity-55 dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
+            disabled={!canExportReports}
+            onClick={() => handleExportReport("pdf")}
+            title="Descargar PDF"
+            type="button"
+          >
+            {exportingReport === "pdf" ? (
+              <Loader2 aria-hidden="true" className="animate-spin" size={16} strokeWidth={2.7} />
+            ) : (
+              <FileText aria-hidden="true" size={16} strokeWidth={2.7} />
+            )}
+            PDF
+          </button>
+          <button
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-panel bg-brand-orange px-3 py-2 font-body text-sm font-black uppercase text-brand-ink shadow-action transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-55 disabled:shadow-none"
+            disabled={!canExportReports}
+            onClick={() => handleExportReport("excel")}
+            title="Descargar Excel"
+            type="button"
+          >
+            {exportingReport === "excel" ? (
+              <Loader2 aria-hidden="true" className="animate-spin" size={16} strokeWidth={2.7} />
+            ) : (
+              <FileSpreadsheet aria-hidden="true" size={16} strokeWidth={2.7} />
+            )}
+            Excel
+          </button>
+          <button
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-sm font-black uppercase text-brand-ink transition hover:border-brand-orange hover:text-brand-orange dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
+            onClick={onRefresh}
+            type="button"
+          >
+            <RefreshCcw aria-hidden="true" size={16} strokeWidth={2.7} />
+            Actualizar
+          </button>
+        </div>
       </div>
+
+      <p
+        aria-live="polite"
+        className="mt-3 font-body text-sm font-black text-neutral-600 dark:text-orange-50/70"
+      >
+        {reportFeedback}
+      </p>
 
       <form className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" onSubmit={onSubmitFilters}>
         {isAdmin ? (
@@ -1415,6 +1495,20 @@ function normalizeFilterValue(value?: string) {
       .trim()
       .toUpperCase() ?? ""
   );
+}
+
+function getReportErrorMessage(error: unknown, format: "pdf" | "excel") {
+  const reportName = format === "pdf" ? "PDF" : "Excel";
+  const message = error instanceof Error ? error.message : "";
+
+  if (
+    message.includes("dynamically imported module") ||
+    message.includes("/node_modules/.vite/")
+  ) {
+    return `No se pudo cargar el generador de ${reportName}. Recarga la pagina e intenta de nuevo.`;
+  }
+
+  return `No se pudo generar el ${reportName}.`;
 }
 
 function formatDate(value?: string) {
