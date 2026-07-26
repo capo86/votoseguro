@@ -1433,21 +1433,14 @@ function buildWhatsappUrl(record: VotoSeguroRecord) {
 }
 
 function buildWhatsappMessage(record: VotoSeguroRecord) {
-  const emojis = {
-    ballot: "\u{1F5F3}\u{FE0F}",
-    heart: "\u{1F9E1}",
-    pin: "\u{1F4CD}",
-    py: "\u{1F1F5}\u{1F1FE}",
-    ticket: "\u{1F39F}\u{FE0F}",
-  };
   const local = record.localVotacion || record.local || "tu local de votacion";
 
   return [
-    `${emojis.py} ${record.nombreApellido} - Ya llega el gran dia!! esperamos tu apoyo.`,
-    `${emojis.ballot} Candidatos que elegiste: ${candidateNamesForWhatsapp(record)}.`,
-    `${emojis.pin} Local: ${local}.`,
-    `${emojis.ticket} ${mesaOrdenLabel(record)}.`,
-    `${emojis.heart} Gracias por acompanarnos!`,
+    `${record.nombreApellido} - Ya llega el gran dia!! esperamos tu apoyo.`,
+    `Candidatos que elegiste: ${candidateNamesForWhatsapp(record)}.`,
+    `Local: ${local}.`,
+    `Mesa/Orden: ${mesaOrdenWhatsappLabel(record)}.`,
+    "Gracias por acompanarnos!",
   ].join("\n");
 }
 
@@ -1467,6 +1460,10 @@ function candidateNamesForWhatsapp(record: VotoSeguroRecord) {
 
 function candidateNameWithList(name: string, list?: string) {
   return `${name}${list ? ` - Lista ${list}` : ""}`;
+}
+
+function mesaOrdenWhatsappLabel(record: VotoSeguroRecord) {
+  return `Mesa: ${record.mesa || "-"} | Orden: ${record.orden || "-"}`;
 }
 
 function normalizeWhatsappPhone(value: string) {

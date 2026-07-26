@@ -17,6 +17,7 @@ import {
   type DashboardTerritoryRow,
   type DashboardUserRow,
 } from "../lib/adminPanelApi";
+import { useAppStore } from "../store/appStore";
 
 interface DepartmentSummary {
   cantidad: number;
@@ -311,6 +312,12 @@ interface ChartPanelProps {
 }
 
 function ChartPanel({ data, description, emptyMessage, isLoading, title }: ChartPanelProps) {
+  const isDark = useAppStore((state) => state.theme === "dark");
+  const axisTextColor = isDark ? "#F5F5F4" : "#292524";
+  const mutedAxisTextColor = isDark ? "#D6D3D1" : "#78716c";
+  const gridColor = isDark ? "rgba(245, 245, 244, 0.18)" : "rgba(120, 113, 108, 0.22)";
+  const cursorColor = isDark ? "rgba(242, 130, 12, 0.18)" : "rgba(242, 130, 12, 0.1)";
+
   return (
     <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.9] p-4 shadow-panel backdrop-blur sm:p-6 dark:border-brand-line dark:bg-neutral-900/[0.92]">
       <div>
@@ -340,23 +347,23 @@ function ChartPanel({ data, description, emptyMessage, isLoading, title }: Chart
               layout="vertical"
               margin={{ bottom: 8, left: 12, right: 18, top: 8 }}
             >
-              <CartesianGrid horizontal={false} stroke="rgba(120, 113, 108, 0.22)" />
+              <CartesianGrid horizontal={false} stroke={gridColor} />
               <XAxis
                 allowDecimals={false}
                 axisLine={false}
-                tick={{ fill: "#78716c", fontSize: 11, fontWeight: 800 }}
+                tick={{ fill: mutedAxisTextColor, fontSize: 11, fontWeight: 800 }}
                 tickLine={false}
                 type="number"
               />
               <YAxis
                 axisLine={false}
                 dataKey="nombre"
-                tick={{ fill: "#292524", fontSize: 11, fontWeight: 900 }}
+                tick={{ fill: axisTextColor, fontSize: 11, fontWeight: 900 }}
                 tickLine={false}
                 type="category"
                 width={92}
               />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(242, 130, 12, 0.1)" }} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: cursorColor }} />
               <Bar
                 barSize={18}
                 dataKey="cantidad"
