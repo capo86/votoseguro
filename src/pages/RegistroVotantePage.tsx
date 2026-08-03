@@ -1266,61 +1266,20 @@ interface VotoSeguroCardProps {
 
 function VotoSeguroCard({ isNotifying, onNotifyWhatsapp, record }: VotoSeguroCardProps) {
   return (
-    <article className="rounded-panel border border-neutral-200 bg-white/75 p-4 dark:border-brand-line dark:bg-black/[0.16]">
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
-        <div className="min-w-0">
-          <p className="font-display text-xl leading-tight text-brand-ink dark:text-white">
-            {record.nombreApellido}
-          </p>
-          <p className="mt-1 font-body text-sm font-black uppercase text-brand-orange">
-            Cedula {record.cedula} - {record.telefono}
-          </p>
-        </div>
-        <span className="inline-flex w-fit items-center gap-2 rounded-panel border border-emerald-300 bg-emerald-50 px-3 py-2 font-body text-xs font-black uppercase text-emerald-800 dark:border-emerald-300/30 dark:bg-emerald-500/10 dark:text-emerald-100">
-          <ShieldCheck aria-hidden="true" size={14} strokeWidth={2.7} />
-          {record.estado}
-        </span>
-      </div>
-
-      <div className="mt-4 grid gap-3 text-sm text-neutral-700 dark:text-orange-50/80 md:grid-cols-2 xl:grid-cols-4">
-        <GridMetric label="Intendente" value={intendenteLabel(record)} />
-        <GridMetric label="Concejal" value={concejalLabel(record)} />
-        <GridMetric label="Territorio" value={territoryLabel(record)} />
-        <GridMetric label="Local" value={record.localVotacion || record.local || "-"} />
-        <GridMetric label="Mesa / Orden" value={mesaOrdenLabel(record)} />
-        <NotificationStatus record={record} />
-      </div>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
-        <p className="font-body text-xs font-black uppercase text-neutral-500 dark:text-orange-100/[0.58]">
-          {formatDate(record.createdAt)} - {loadedByLabel(record)}
+    <article className="rounded-panel border border-neutral-200 bg-white/75 px-2 py-1.5 dark:border-brand-line dark:bg-black/[0.16]">
+      <div className="grid grid-cols-[1fr_auto] items-center gap-2">
+        <p className="min-w-0 overflow-hidden [display:-webkit-box] font-display text-sm leading-snug text-brand-ink [-webkit-box-orient:vertical] [-webkit-line-clamp:2] dark:text-white">
+          {record.nombreApellido}
         </p>
         <WhatsappNotifyButton
-          className="w-full sm:w-auto"
+          compact
+          className="h-9 min-h-9 w-9 shrink-0 px-0 py-0"
           isLoading={isNotifying}
           onClick={() => onNotifyWhatsapp(record)}
           record={record}
         />
       </div>
     </article>
-  );
-}
-
-interface GridMetricProps {
-  label: string;
-  value: string;
-}
-
-function GridMetric({ label, value }: GridMetricProps) {
-  return (
-    <div className="min-w-0 rounded-panel border border-neutral-200 bg-white/70 p-3 dark:border-brand-line dark:bg-white/[0.04]">
-      <p className="font-body text-[0.68rem] font-black uppercase text-neutral-500 dark:text-orange-100/[0.58]">
-        {label}
-      </p>
-      <p className="mt-1 truncate font-body text-sm font-black text-brand-ink dark:text-white">
-        {value}
-      </p>
-    </div>
   );
 }
 
@@ -1377,6 +1336,7 @@ function NotificationStatus({ record }: NotificationStatusProps) {
 
 interface WhatsappNotifyButtonProps {
   className?: string;
+  compact?: boolean;
   isLoading: boolean;
   onClick: () => void;
   record: VotoSeguroRecord;
@@ -1384,6 +1344,7 @@ interface WhatsappNotifyButtonProps {
 
 function WhatsappNotifyButton({
   className = "",
+  compact = false,
   isLoading,
   onClick,
   record,
@@ -1403,11 +1364,11 @@ function WhatsappNotifyButton({
       type="button"
     >
       {isLoading ? (
-        <Loader2 aria-hidden="true" className="animate-spin" size={16} strokeWidth={2.7} />
+        <Loader2 aria-hidden="true" className="animate-spin" size={compact ? 14 : 16} strokeWidth={2.7} />
       ) : (
-        <MessageCircle aria-hidden="true" size={16} strokeWidth={2.7} />
+        <MessageCircle aria-hidden="true" size={compact ? 14 : 16} strokeWidth={2.7} />
       )}
-      <span>{label}</span>
+      {compact ? <span className="sr-only">{label}</span> : <span>{label}</span>}
     </button>
   );
 }
