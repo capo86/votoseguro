@@ -17,6 +17,7 @@ import {
   type DashboardTerritoryRow,
   type DashboardUserRow,
 } from "../lib/adminPanelApi";
+import { getUserRoleLabel, isDistrictAdminProfile } from "../lib/userRoles";
 import { useAppStore } from "../store/appStore";
 
 interface DepartmentSummary {
@@ -26,10 +27,15 @@ interface DepartmentSummary {
 }
 
 function PanelPage() {
+  const profile = useAppStore((state) => state.profile);
   const [feedback, setFeedback] = useState("Resumen administrativo listo.");
   const [isLoading, setIsLoading] = useState(true);
   const [territoryRows, setTerritoryRows] = useState<DashboardTerritoryRow[]>([]);
   const [topUsers, setTopUsers] = useState<DashboardUserRow[]>([]);
+  const isDistrictScope = isDistrictAdminProfile(profile);
+  const scopeText = isDistrictScope
+    ? `${profile?.departamento || "-"} / ${profile?.ciudad || "-"}`
+    : getUserRoleLabel(profile?.role);
 
   const departmentSummaries = useMemo<DepartmentSummary[]>(() => {
     const grouped = new Map<string, DashboardTerritoryRow[]>();
@@ -149,10 +155,12 @@ function PanelPage() {
           <div>
             <p className="font-body text-xs font-black uppercase text-brand-orange">Resumen</p>
             <h2 className="mt-1 font-display text-3xl leading-none text-brand-ink sm:text-4xl dark:text-white">
-              Resumen administrativo
+              {isDistrictScope ? "Resumen distrital" : "Resumen administrativo"}
             </h2>
             <p className="mt-2 max-w-2xl font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
-              Seguimiento de Voto Seguro por territorio y rendimiento de carga por usuario.
+              {isDistrictScope
+                ? `Seguimiento de Voto Seguro limitado a ${scopeText}.`
+                : "Seguimiento de Voto Seguro por territorio y rendimiento de carga por usuario."}
             </p>
           </div>
           <button
@@ -172,17 +180,29 @@ function PanelPage() {
 
       <section className="grid gap-3 md:grid-cols-3">
         <MetricCard icon={<Vote aria-hidden="true" size={24} />} label="Votos seguros" value={totalCargas} />
-        <MetricCard icon={<BarChart3 aria-hidden="true" size={24} />} label="Departamentos" value={totalDepartamentos} />
-        <MetricCard icon={<ChevronDown aria-hidden="true" size={24} />} label="Distritos" value={totalDistritos} />
+        <MetricCard
+          icon={<BarChart3 aria-hidden="true" size={24} />}
+          label={isDistrictScope ? "Departamento" : "Departamentos"}
+          value={totalDepartamentos}
+        />
+        <MetricCard
+          icon={<ChevronDown aria-hidden="true" size={24} />}
+          label={isDistrictScope ? "Distrito" : "Distritos"}
+          value={totalDistritos}
+        />
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
         <ChartPanel
           data={departmentChartData}
-          description="Top departamentos por cantidad de Voto Seguro cargado."
+          description={
+            isDistrictScope
+              ? "Volumen de Voto Seguro dentro del distrito asignado."
+              : "Top departamentos por cantidad de Voto Seguro cargado."
+          }
           emptyMessage="Sin datos territoriales para graficar."
           isLoading={isLoading}
-          title="Departamentos con mas carga"
+          title={isDistrictScope ? "Carga del distrito" : "Departamentos con mas carga"}
         />
         <ChartPanel
           data={userChartData}
@@ -198,7 +218,7 @@ function PanelPage() {
           <div>
             <p className="font-body text-xs font-black uppercase text-brand-orange">Territorio</p>
             <h3 className="font-display text-2xl text-brand-ink dark:text-white">
-              Cargas por departamento
+              {isDistrictScope ? "Cargas del distrito" : "Cargas por departamento"}
             </h3>
             <p className="mt-2 font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
               {feedback}

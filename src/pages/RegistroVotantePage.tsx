@@ -47,6 +47,7 @@ import { usePadronLookup } from "../hooks/usePadronLookup";
 import { filterCandidatesByElectionRole } from "../lib/candidateCargo";
 import { filterCandidatosForProfile, filterCandidatosForVoter, territoriesMatch } from "../lib/candidateTerritory";
 import { listarCandidatos } from "../lib/candidatosApi";
+import { getUserRoleLabel, isDistrictAdminProfile, isGeneralAdminProfile } from "../lib/userRoles";
 import { listarUserProfiles } from "../lib/userProfilesApi";
 import {
   crearVotoSeguroSnapshot,
@@ -148,7 +149,10 @@ function RegistroVotantePage() {
   const [successAlert, setSuccessAlert] = useState<SuccessAlertState | null>(null);
   const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
 
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = isGeneralAdminProfile(profile);
+  const isDistrictAdmin = isDistrictAdminProfile(profile);
+  const canViewTeamScope = isAdmin || isDistrictAdmin;
+  const mustMatchProfileTerritory = profile?.role === "referente" || profile?.role === "admin_distrital";
 
   const {
     formState: { errors, isSubmitting },
@@ -191,10 +195,10 @@ function RegistroVotantePage() {
   );
   const hasIntendenteOptions = candidatosIntendente.length > 0;
   const municipalityMismatch = Boolean(
-    profile?.role === "referente" &&
+    mustMatchProfileTerritory &&
       padronLookup.data &&
-      (!territoriesMatch(padronLookup.data.departamento, profile.departamento) ||
-        !territoriesMatch(padronLookup.data.distrito, profile.ciudad)),
+      (!territoriesMatch(padronLookup.data.departamento, profile?.departamento) ||
+        !territoriesMatch(padronLookup.data.distrito, profile?.ciudad)),
   );
 
   const loadVotoSeguroRecords = useCallback(
@@ -202,11 +206,15 @@ function RegistroVotantePage() {
       setIsLoadingRecords(true);
 
       try {
+        const scopedDepartamento = isDistrictAdmin
+          ? profile?.departamento
+          : filtersToApply.departamento || undefined;
+        const scopedCiudad = isDistrictAdmin ? profile?.ciudad : filtersToApply.ciudad || undefined;
         const data = await listarVotoSeguroSnapshots({
           candidatoId: filtersToApply.candidatoId || undefined,
           cedula: filtersToApply.cedula || undefined,
-          ciudad: filtersToApply.ciudad || undefined,
-          departamento: filtersToApply.departamento || undefined,
+          ciudad: scopedCiudad,
+          departamento: scopedDepartamento,
           dateFrom: filtersToApply.dateFrom || undefined,
           dateTo: filtersToApply.dateTo || undefined,
           fueNotificado:
@@ -215,8 +223,8 @@ function RegistroVotantePage() {
               : filtersToApply.notificacion === "PENDIENTES"
               ? false
               : undefined,
-          loadedBy: isAdmin ? filtersToApply.loadedBy || undefined : user?.id,
-          loadedByLocalidad: isAdmin ? filtersToApply.localidad || undefined : undefined,
+          loadedBy: canViewTeamScope ? filtersToApply.loadedBy || undefined : user?.id,
+          loadedByLocalidad: canViewTeamScope ? filtersToApply.localidad || undefined : undefined,
           nombre: filtersToApply.nombre || undefined,
           telefono: filtersToApply.telefono || undefined,
         });
@@ -228,7 +236,7 @@ function RegistroVotantePage() {
         setIsLoadingRecords(false);
       }
     },
-    [isAdmin, user?.id],
+    [canViewTeamScope, isDistrictAdmin, profile?.ciudad, profile?.departamento, user?.id],
   );
 
   const markDirty = () => {
@@ -279,7 +287,7 @@ function RegistroVotantePage() {
   }, [loadVotoSeguroRecords]);
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!canViewTeamScope) {
       setUserProfiles([]);
       return;
     }
@@ -305,7 +313,7 @@ function RegistroVotantePage() {
     return () => {
       isMounted = false;
     };
-  }, [isAdmin]);
+  }, [canViewTeamScope]);
 
   useEffect(() => {
     if (!padronLookup.data) {
@@ -732,7 +740,10 @@ function RegistroVotantePage() {
         onSubmitFilters={handleFilterSubmit}
         notifyingRecordId={notifyingRecordId}
         records={records}
-        isAdmin={isAdmin}
+        canViewTeamScope={canViewTeamScope}
+        isDistrictScope={isDistrictAdmin}
+        scopeLabel={getUserRoleLabel(profile?.role)}
+        territoryScopeLabel={`${profile?.departamento || "-"} / ${profile?.ciudad || "-"}`}
         userProfiles={userProfiles}
       />
     </section>
@@ -770,10 +781,11 @@ function LocationMapFallback({ error }: LocationMapFallbackProps) {
 }
 
 interface VotoSeguroGridProps {
+  canViewTeamScope: boolean;
   candidatos: Candidato[];
   feedback: string;
   filters: GridFilters;
-  isAdmin: boolean;
+  isDistrictScope: boolean;
   isLoading: boolean;
   onClearFilters: () => void;
   onFilterChange: (field: keyof GridFilters) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
@@ -782,14 +794,17 @@ interface VotoSeguroGridProps {
   onSubmitFilters: (event: FormEvent<HTMLFormElement>) => void;
   notifyingRecordId: string | null;
   records: VotoSeguroRecord[];
+  scopeLabel: string;
+  territoryScopeLabel: string;
   userProfiles: UserProfile[];
 }
 
 function VotoSeguroGrid({
+  canViewTeamScope,
   candidatos,
   feedback,
   filters,
-  isAdmin,
+  isDistrictScope,
   isLoading,
   onClearFilters,
   onFilterChange,
@@ -798,6 +813,8 @@ function VotoSeguroGrid({
   onSubmitFilters,
   notifyingRecordId,
   records,
+  scopeLabel,
+  territoryScopeLabel,
   userProfiles,
 }: VotoSeguroGridProps) {
   const cityOptions = getParaguayCitiesByDepartment(filters.departamento);
@@ -839,7 +856,6 @@ function VotoSeguroGrid({
     [filters.cedula, filters.nombre, filters.notificacion, filters.telefono, records],
   );
   const canExportReports = visibleRecordsForExport.length > 0 && !isLoading && !exportingReport;
-  const scopeLabel = isAdmin ? "Admin" : "Referente";
 
   const handleExportReport = async (format: "pdf" | "excel") => {
     if (!visibleRecordsForExport.length) {
@@ -888,7 +904,7 @@ function VotoSeguroGrid({
           </div>
         ),
       },
-      ...(isAdmin
+      ...(canViewTeamScope
         ? [
             {
               id: "loadedBy",
@@ -951,7 +967,7 @@ function VotoSeguroGrid({
 
       return visibleColumns;
     },
-    [isAdmin, notifyingRecordId, onNotifyWhatsapp],
+    [canViewTeamScope, notifyingRecordId, onNotifyWhatsapp],
   );
 
   return (
@@ -1014,7 +1030,7 @@ function VotoSeguroGrid({
       </p>
 
       <form className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" onSubmit={onSubmitFilters}>
-        {isAdmin ? (
+        {canViewTeamScope ? (
           <>
             <FilterField label="Usuario">
               <select
@@ -1115,38 +1131,47 @@ function VotoSeguroGrid({
           </select>
         </FilterField>
 
-        <FilterField label="Departamento">
-          <select
-            className={filterInputClass()}
-            onChange={onFilterChange("departamento")}
-            value={filters.departamento}
-          >
-            <option value="">Todos</option>
-            {PARAGUAY_DEPARTMENTS.map((department) => (
-              <option key={department.code} value={department.name}>
-                {department.name}
-              </option>
-            ))}
-          </select>
-        </FilterField>
+        {isDistrictScope ? (
+          <div className="flex min-h-12 items-center gap-2 rounded-panel border border-orange-300 bg-orange-50 px-3 py-2 font-body text-sm font-black uppercase text-brand-ink dark:border-orange-300/30 dark:bg-orange-500/10 dark:text-orange-50">
+            <ShieldCheck aria-hidden="true" size={16} strokeWidth={2.7} />
+            {territoryScopeLabel}
+          </div>
+        ) : (
+          <>
+            <FilterField label="Departamento">
+              <select
+                className={filterInputClass()}
+                onChange={onFilterChange("departamento")}
+                value={filters.departamento}
+              >
+                <option value="">Todos</option>
+                {PARAGUAY_DEPARTMENTS.map((department) => (
+                  <option key={department.code} value={department.name}>
+                    {department.name}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
 
-        <FilterField label="Ciudad">
-          <select
-            className={filterInputClass()}
-            disabled={!filters.departamento}
-            onChange={onFilterChange("ciudad")}
-            value={filters.ciudad}
-          >
-            <option value="">
-              {filters.departamento ? "Todas" : "Selecciona departamento"}
-            </option>
-            {cityOptions.map((city) => (
-              <option key={city} value={city}>
-                {city}
-              </option>
-            ))}
-          </select>
-        </FilterField>
+            <FilterField label="Ciudad">
+              <select
+                className={filterInputClass()}
+                disabled={!filters.departamento}
+                onChange={onFilterChange("ciudad")}
+                value={filters.ciudad}
+              >
+                <option value="">
+                  {filters.departamento ? "Todas" : "Selecciona departamento"}
+                </option>
+                {cityOptions.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
+              </select>
+            </FilterField>
+          </>
+        )}
 
         <FilterField label="Candidato">
           <select

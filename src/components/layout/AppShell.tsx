@@ -15,6 +15,7 @@ import type { ReactNode } from "react";
 import type { AppSection } from "../../types/navigation";
 import type { Theme } from "../../types/theme";
 import type { UserProfile } from "../../types/userProfile";
+import { canAccessTerritoryManagement, getUserRoleLabel } from "../../lib/userRoles";
 import AppFooter from "./AppFooter";
 import ThemeToggle from "./ThemeToggle";
 
@@ -82,10 +83,10 @@ function AppShell({
   theme,
   user,
 }: AppShellProps) {
-  const isAdmin = profile?.role === "admin";
+  const canManageTerritory = canAccessTerritoryManagement(profile);
   const userLabel = profile?.nombreApellido ?? "Usuario activo";
-  const roleLabel = profile?.role === "admin" ? "Admin" : "Referente";
-  const visibleNavItems = navItems.filter((item) => !item.adminOnly || isAdmin);
+  const roleLabel = getUserRoleLabel(profile?.role);
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || canManageTerritory);
 
   const sidebar = (
     <div className="flex h-full flex-col">

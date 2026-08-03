@@ -26,6 +26,13 @@ import {
   findParaguayDepartmentName,
   getParaguayCitiesByDepartment,
 } from "../data/paraguayTerritories";
+import { territoriesMatch } from "../lib/candidateTerritory";
+import {
+  DISTRICT_ADMIN_USER_CREATION_LIMIT,
+  getUserRoleLabel,
+  isDistrictAdminProfile,
+  isGeneralAdminProfile,
+} from "../lib/userRoles";
 import {
   actualizarUserProfile,
   crearUserProfile,
@@ -33,6 +40,7 @@ import {
   lookupPadronForUser,
   resetUserProfilePassword,
 } from "../lib/userProfilesApi";
+import { useAppStore } from "../store/appStore";
 import type { UserProfile, UserRole, UserStatus } from "../types/userProfile";
 import type { PadronResponse } from "../types/votante";
 
@@ -59,6 +67,7 @@ const initialForm: UserFormState = {
 };
 
 function UsuariosPage() {
+  const currentProfile = useAppStore((state) => state.profile);
   const [editingProfile, setEditingProfile] = useState<UserProfile | null>(null);
   const [feedback, setFeedback] = useState("Gestion de usuarios lista.");
   const [form, setForm] = useState<UserFormState>(initialForm);
@@ -74,7 +83,34 @@ function UsuariosPage() {
     title: string;
   } | null>(null);
 
-  const cityOptions = getParaguayCitiesByDepartment(form.departamento);
+  const isGeneralAdmin = isGeneralAdminProfile(currentProfile);
+  const isDistrictAdmin = isDistrictAdminProfile(currentProfile);
+  const districtDepartamento = currentProfile?.departamento ?? "";
+  const districtCiudad = currentProfile?.ciudad ?? "";
+  const cityOptions =
+    isDistrictAdmin && districtCiudad
+      ? [districtCiudad]
+      : getParaguayCitiesByDepartment(form.departamento);
+  const roleOptions = isGeneralAdmin
+    ? [
+        { label: "Referente", value: "referente" },
+        { label: "Admin distrital", value: "admin_distrital" },
+        { label: "Admin", value: "admin" },
+      ]
+    : [{ label: "Referente", value: "referente" }];
+  const districtAdminCreatedCount = useMemo(() => {
+    if (!isDistrictAdmin || !currentProfile?.authUserId) {
+      return 0;
+    }
+
+    return profiles.filter((profile) => profile.createdBy === currentProfile.authUserId).length;
+  }, [currentProfile?.authUserId, isDistrictAdmin, profiles]);
+  const districtAdminRemainingCreations = Math.max(
+    0,
+    DISTRICT_ADMIN_USER_CREATION_LIMIT - districtAdminCreatedCount,
+  );
+  const districtAdminCreationLimitReached =
+    isDistrictAdmin && !editingProfile && districtAdminRemainingCreations === 0;
   const filteredProfiles = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
@@ -89,6 +125,7 @@ function UsuariosPage() {
         profile.departamento,
         profile.ciudad,
         profile.localidad,
+        getUserRoleLabel(profile.role),
         profile.role,
         profile.estado,
       ]
@@ -116,7 +153,7 @@ function UsuariosPage() {
       {
         accessorKey: "role",
         header: "Perfil",
-        cell: ({ row }) => (row.original.role === "admin" ? "Admin" : "Referente"),
+        cell: ({ row }) => getUserRoleLabel(row.original.role),
       },
       {
         accessorKey: "estado",
@@ -157,6 +194,19 @@ function UsuariosPage() {
     [],
   );
 
+  useEffect(() => {
+    if (!isDistrictAdmin || !districtDepartamento || !districtCiudad) {
+      return;
+    }
+
+    setForm((currentForm) => ({
+      ...currentForm,
+      ciudad: districtCiudad,
+      departamento: districtDepartamento,
+      role: "referente",
+    }));
+  }, [districtCiudad, districtDepartamento, isDistrictAdmin]);
+
   async function loadProfiles() {
     setIsLoading(true);
 
@@ -180,42 +230,62 @@ function UsuariosPage() {
     (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       const value = event.target.value;
 
+      if (field === "cedula") {
+        setPadronData(null);
+        setForm((currentForm) => ({
+          ...currentForm,
+          cedula: value,
+          ciudad: isDistrictAdmin ? districtCiudad : "",
+          departamento: isDistrictAdmin ? districtDepartamento : "",
+          nombreApellido: "",
+          role: isDistrictAdmin ? "referente" : currentForm.role,
+        }));
+        setFeedback("Cambios pendientes.");
+        return;
+      }
+
+      if (isDistrictAdmin && (field === "role" || field === "departamento" || field === "ciudad")) {
+        setFeedback("Tu perfil opera solo en su distrito asignado.");
+        return;
+      }
+
       setForm((currentForm) => ({
         ...currentForm,
         ...(field === "departamento" ? { ciudad: "" } : {}),
         [field]: value,
       }));
 
-      if (field === "cedula") {
-        setPadronData(null);
-        setForm((currentForm) => ({
-          ...currentForm,
-          cedula: value,
-          ciudad: "",
-          departamento: "",
-          nombreApellido: "",
-        }));
-      }
-
       setFeedback("Cambios pendientes.");
     };
 
   const handleLookup = async () => {
+    if (districtAdminCreationLimitReached) {
+      setFeedback("Ya alcanzaste el limite de 10 usuarios creados.");
+      return;
+    }
+
     setIsLookingUp(true);
     setFeedback("Consultando padron.");
 
     try {
       const data = await lookupPadronForUser(form.cedula);
-      const departamento = findParaguayDepartmentName(data.departamento) ?? "";
-      const ciudad = findParaguayCityName(departamento, data.distrito) ?? "";
+      const departamento = isDistrictAdmin
+        ? districtDepartamento
+        : findParaguayDepartmentName(data.departamento) ?? "";
+      const ciudad = isDistrictAdmin ? districtCiudad : findParaguayCityName(departamento, data.distrito) ?? "";
       setPadronData(data);
       setForm((currentForm) => ({
         ...currentForm,
         ciudad,
         departamento,
         nombreApellido: data.nombreApellido,
+        role: isDistrictAdmin ? "referente" : currentForm.role,
       }));
-      setFeedback("Cedula encontrada. Completa perfil, territorio y contraseña.");
+      setFeedback(
+        isDistrictAdmin
+          ? "Cedula encontrada. El usuario quedara asignado a tu distrito."
+          : "Cedula encontrada. Completa perfil, territorio y contrasena.",
+      );
     } catch (error) {
       setPadronData(null);
       setFeedback(error instanceof Error ? error.message : "No se pudo consultar el padron.");
@@ -226,23 +296,44 @@ function UsuariosPage() {
 
   const resetForm = () => {
     setEditingProfile(null);
-    setForm(initialForm);
+    setForm(
+      isDistrictAdmin
+        ? {
+            ...initialForm,
+            ciudad: districtCiudad,
+            departamento: districtDepartamento,
+            role: "referente",
+          }
+        : initialForm,
+    );
     setPadronData(null);
     setFeedback("Formulario limpio.");
   };
 
   const handleEdit = (profile: UserProfile) => {
+    if (
+      isDistrictAdmin &&
+      (profile.role !== "referente" ||
+        !territoriesMatch(profile.departamento, districtDepartamento) ||
+        !territoriesMatch(profile.ciudad, districtCiudad))
+    ) {
+      setFeedback("Solo puedes editar referentes de tu distrito.");
+      return;
+    }
+
     setEditingProfile(profile);
     setPadronData(null);
     setForm({
       cedula: profile.cedula,
-      ciudad: findParaguayCityName(profile.departamento, profile.ciudad) ?? "",
-      departamento: findParaguayDepartmentName(profile.departamento) ?? "",
+      ciudad: isDistrictAdmin ? districtCiudad : findParaguayCityName(profile.departamento, profile.ciudad) ?? "",
+      departamento: isDistrictAdmin
+        ? districtDepartamento
+        : findParaguayDepartmentName(profile.departamento) ?? "",
       estado: profile.estado,
       localidad: profile.localidad ?? "",
       nombreApellido: profile.nombreApellido,
       password: "",
-      role: profile.role,
+      role: isDistrictAdmin ? "referente" : profile.role,
     });
     setFeedback(`Editando ${profile.nombreApellido}.`);
   };
@@ -255,8 +346,23 @@ function UsuariosPage() {
       return;
     }
 
+    if (
+      isDistrictAdmin &&
+      (form.role !== "referente" ||
+        !territoriesMatch(form.departamento, districtDepartamento) ||
+        !territoriesMatch(form.ciudad, districtCiudad))
+    ) {
+      setFeedback("Solo puedes gestionar referentes de tu distrito.");
+      return;
+    }
+
     if (!editingProfile && !padronData) {
       setFeedback("Consulta una cedula valida antes de crear usuario.");
+      return;
+    }
+
+    if (!editingProfile && districtAdminCreationLimitReached) {
+      setFeedback("Ya alcanzaste el limite de 10 usuarios creados.");
       return;
     }
 
@@ -289,7 +395,7 @@ function UsuariosPage() {
         setSuccessAlert({
           details: [
             { label: "Usuario", value: updated.nombreApellido },
-            { label: "Perfil", value: updated.role === "admin" ? "Admin" : "Referente" },
+            { label: "Perfil", value: getUserRoleLabel(updated.role) },
             { label: "Territorio", value: `${updated.departamento} / ${updated.ciudad}` },
           ],
           summary: form.password.trim()
@@ -312,7 +418,7 @@ function UsuariosPage() {
         setSuccessAlert({
           details: [
             { label: "Usuario", value: created.nombreApellido },
-            { label: "Perfil", value: created.role === "admin" ? "Admin" : "Referente" },
+            { label: "Perfil", value: getUserRoleLabel(created.role) },
             { label: "Acceso", value: `Cedula ${created.cedula}` },
           ],
           summary: "El usuario quedo creado como perfil operativo activo.",
@@ -348,11 +454,17 @@ function UsuariosPage() {
               Alta por cedula
             </h2>
             <p className="mt-2 max-w-2xl font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
-              Crea referentes y administradores desde el padron, con territorio operativo y estado de acceso.
+              {isDistrictAdmin
+                ? `Crea y supervisa hasta ${DISTRICT_ADMIN_USER_CREATION_LIMIT} referentes de tu distrito operativo.`
+                : "Crea referentes y administradores desde el padron, con territorio operativo y estado de acceso."}
             </p>
           </div>
           <div className="w-fit rounded-panel border border-neutral-200 bg-white/70 px-3 py-2 font-body text-sm font-black text-neutral-700 dark:border-brand-line dark:bg-black/[0.18] dark:text-white">
-            {isLoading ? "Cargando" : `${profiles.length} usuarios`}
+            {isLoading
+              ? "Cargando"
+              : isDistrictAdmin
+              ? `${districtAdminCreatedCount}/${DISTRICT_ADMIN_USER_CREATION_LIMIT} altas`
+              : `${profiles.length} usuarios`}
           </div>
         </div>
       </section>
@@ -403,7 +515,7 @@ function UsuariosPage() {
               </div>
               <button
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-sm font-black uppercase text-brand-ink transition hover:border-brand-orange hover:text-brand-orange disabled:cursor-not-allowed disabled:opacity-60 dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
-                disabled={Boolean(editingProfile) || isLookingUp}
+                disabled={Boolean(editingProfile) || isLookingUp || districtAdminCreationLimitReached}
                 type="button"
                 onClick={handleLookup}
               >
@@ -422,10 +534,7 @@ function UsuariosPage() {
           <SelectField
             label="Rol"
             onChange={handleChange("role")}
-            options={[
-              { label: "Referente", value: "referente" },
-              { label: "Admin", value: "admin" },
-            ]}
+            options={roleOptions}
             value={form.role}
           />
 
@@ -440,6 +549,7 @@ function UsuariosPage() {
           />
 
           <SelectField
+            disabled={isDistrictAdmin}
             label="Departamento"
             onChange={handleChange("departamento")}
             options={PARAGUAY_DEPARTMENTS.map((department) => ({
@@ -451,7 +561,7 @@ function UsuariosPage() {
           />
 
           <SelectField
-            disabled={!form.departamento}
+            disabled={isDistrictAdmin || !form.departamento}
             label="Ciudad"
             onChange={handleChange("ciudad")}
             options={cityOptions.map((city) => ({ label: city, value: city }))}
@@ -478,7 +588,9 @@ function UsuariosPage() {
 
           <div className="md:col-span-2">
             <div className="flex items-center gap-2 rounded-panel border border-brand-orange/40 bg-brand-orange/10 px-4 py-3 font-body text-sm font-bold text-brand-ink dark:text-orange-50">
-              {feedback.toLowerCase().includes("no ") || feedback.toLowerCase().includes("falta") ? (
+              {feedback.toLowerCase().includes("no ") ||
+              feedback.toLowerCase().includes("falta") ||
+              feedback.toLowerCase().includes("limite") ? (
                 <AlertCircle aria-hidden="true" size={18} strokeWidth={2.6} />
               ) : (
                 <CheckCircle2 aria-hidden="true" size={18} strokeWidth={2.6} />
@@ -489,10 +601,17 @@ function UsuariosPage() {
 
           <div className="grid gap-2 md:col-span-2 sm:grid-cols-[1fr_auto] sm:items-center">
             <p className="font-body text-xs font-black uppercase text-neutral-500 dark:text-orange-100/[0.58]">
-              {editingProfile ? "Edita permisos, estado o territorio." : "La cedula debe existir en el padron."}
+              {isDistrictAdmin
+                ? districtAdminCreationLimitReached
+                  ? "Alcanzaste el limite de 10 altas para tu perfil distrital."
+                  : `Te quedan ${districtAdminRemainingCreations} altas disponibles para tu perfil distrital.`
+                : editingProfile
+                ? "Edita permisos, estado o territorio."
+                : "La cedula debe existir en el padron."}
             </p>
             <Button
               className="w-full sm:min-w-56"
+              disabled={districtAdminCreationLimitReached}
               icon={<Save aria-hidden="true" size={18} strokeWidth={2.8} />}
               isLoading={isSaving}
               type="submit"
@@ -577,7 +696,7 @@ function UserProfileCard({ onEdit, profile }: UserProfileCardProps) {
       </div>
 
       <div className="mt-4 grid gap-3 text-sm text-neutral-700 dark:text-orange-50/80 md:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Perfil" value={profile.role === "admin" ? "Admin" : "Referente"} />
+        <Metric label="Perfil" value={getUserRoleLabel(profile.role)} />
         <Metric label="Estado" value={profile.estado === "activo" ? "Activo" : "Inactivo"} />
         <Metric label="Territorio" value={`${profile.departamento} / ${profile.ciudad}`} />
         <Metric label="Localidad" value={profile.localidad || "-"} />

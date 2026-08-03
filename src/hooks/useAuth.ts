@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { signInIdentifierToEmail } from "../lib/authIdentity";
 import { isSupabaseConfigured, supabase } from "../lib/supabaseClient";
+import { canAccessTerritoryManagement, isDistrictAdminProfile, isGeneralAdminProfile } from "../lib/userRoles";
 import { getCurrentUserProfile } from "../lib/userProfilesApi";
 import { useAppStore } from "../store/appStore";
 
@@ -139,9 +140,11 @@ export function useAuth() {
   }, [setProfile, setSession]);
 
   return {
-    isAdmin: profile?.role === "admin",
+    canAccessTerritoryManagement: canAccessTerritoryManagement(profile),
+    isAdmin: isGeneralAdminProfile(profile),
     isAuthenticated: Boolean(session),
     isConfigured: isSupabaseConfigured,
+    isDistrictAdmin: isDistrictAdminProfile(profile),
     isReferente: profile?.role === "referente",
     isLoading,
     profile,

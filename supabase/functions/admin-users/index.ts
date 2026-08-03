@@ -1,7 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-type UserRole = "admin" | "referente";
+type UserRole = "admin" | "admin_distrital" | "referente";
 type UserStatus = "activo" | "inactivo";
+
+const DISTRICT_ADMIN_USER_CREATION_LIMIT = 10;
 
 interface AdminRequest {
   action: "lookup-padron" | "create" | "update" | "reset-password";
@@ -25,6 +27,24 @@ interface PadronRow {
   zona_descripcion: string | null;
   local: number | null;
   local_descripcion: string | null;
+}
+
+interface CallerProfile {
+  auth_user_id: string;
+  ciudad: string;
+  departamento: string;
+  estado: UserStatus;
+  role: UserRole;
+}
+
+interface ManagedProfile {
+  auth_user_id: string;
+  cedula: string;
+  ciudad: string;
+  departamento: string;
+  estado: UserStatus;
+  nombre_apellido: string;
+  role: UserRole;
 }
 
 const corsHeaders = {
@@ -73,11 +93,98 @@ function assertPassword(value: unknown) {
 }
 
 function assertRole(value: unknown): UserRole {
-  if (value === "admin" || value === "referente") {
+  if (value === "admin" || value === "admin_distrital" || value === "referente") {
     return value;
   }
 
   throw new HttpError(400, "Selecciona un perfil valido.");
+}
+
+function normalizeTerritory(value: unknown) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase();
+}
+
+function territoriesMatch(left: unknown, right: unknown) {
+  return normalizeTerritory(left) === normalizeTerritory(right);
+}
+
+function isGeneralAdmin(profile: CallerProfile) {
+  return profile.role === "admin";
+}
+
+function assertCanAssignRole(callerProfile: CallerProfile, role: UserRole) {
+  if (isGeneralAdmin(callerProfile)) {
+    return;
+  }
+
+  if (callerProfile.role === "admin_distrital" && role === "referente") {
+    return;
+  }
+
+  throw new HttpError(403, "Solo el administrador general puede asignar ese perfil.");
+}
+
+function assertCanUseTerritory(callerProfile: CallerProfile, departamento: string, ciudad: string) {
+  if (isGeneralAdmin(callerProfile)) {
+    return;
+  }
+
+  if (
+    callerProfile.role === "admin_distrital" &&
+    territoriesMatch(departamento, callerProfile.departamento) &&
+    territoriesMatch(ciudad, callerProfile.ciudad)
+  ) {
+    return;
+  }
+
+  throw new HttpError(403, "Solo puedes gestionar usuarios de tu distrito.");
+}
+
+async function assertDistrictAdminCreationQuota(
+  serviceClient: ReturnType<typeof createServiceClient>,
+  callerId: string,
+  callerProfile: CallerProfile,
+) {
+  if (callerProfile.role !== "admin_distrital") {
+    return;
+  }
+
+  const { count, error } = await serviceClient
+    .from("user_profiles")
+    .select("id", { count: "exact", head: true })
+    .eq("created_by", callerId);
+
+  if (error) {
+    throw new HttpError(500, error.message);
+  }
+
+  if ((count ?? 0) >= DISTRICT_ADMIN_USER_CREATION_LIMIT) {
+    throw new HttpError(
+      403,
+      `Este Admin distrital ya alcanzo el limite de ${DISTRICT_ADMIN_USER_CREATION_LIMIT} usuarios creados.`,
+    );
+  }
+}
+
+function assertCanManageProfile(callerProfile: CallerProfile, targetProfile: ManagedProfile) {
+  if (isGeneralAdmin(callerProfile)) {
+    return;
+  }
+
+  if (
+    callerProfile.role === "admin_distrital" &&
+    targetProfile.role === "referente" &&
+    territoriesMatch(targetProfile.departamento, callerProfile.departamento) &&
+    territoriesMatch(targetProfile.ciudad, callerProfile.ciudad)
+  ) {
+    return;
+  }
+
+  throw new HttpError(403, "Solo puedes gestionar referentes de tu distrito.");
 }
 
 function assertStatus(value: unknown): UserStatus {
@@ -138,7 +245,7 @@ function createUserClient(authorization: string) {
   });
 }
 
-async function requireAdmin(req: Request, serviceClient: ReturnType<typeof createServiceClient>) {
+async function requireUserManager(req: Request, serviceClient: ReturnType<typeof createServiceClient>) {
   const authorization = req.headers.get("Authorization");
 
   if (!authorization) {
@@ -157,7 +264,7 @@ async function requireAdmin(req: Request, serviceClient: ReturnType<typeof creat
 
   const { data: profile, error: profileError } = await serviceClient
     .from("user_profiles")
-    .select("auth_user_id,role,estado")
+    .select("auth_user_id,role,estado,departamento,ciudad")
     .eq("auth_user_id", user.id)
     .maybeSingle();
 
@@ -165,11 +272,18 @@ async function requireAdmin(req: Request, serviceClient: ReturnType<typeof creat
     throw new HttpError(500, profileError.message);
   }
 
-  if (!profile || profile.estado !== "activo" || profile.role !== "admin") {
+  if (
+    !profile ||
+    profile.estado !== "activo" ||
+    (profile.role !== "admin" && profile.role !== "admin_distrital")
+  ) {
     throw new HttpError(403, "Necesitas perfil administrador.");
   }
 
-  return user;
+  return {
+    profile: profile as CallerProfile,
+    user,
+  };
 }
 
 async function lookupPadron(serviceClient: ReturnType<typeof createServiceClient>, cedula: string) {
@@ -276,6 +390,7 @@ async function buildProfilePayload(
 async function createProfile(
   serviceClient: ReturnType<typeof createServiceClient>,
   callerId: string,
+  callerProfile: CallerProfile,
   payload: Record<string, unknown>,
 ) {
   const cedula = normalizeCedula(payload.cedula);
@@ -283,6 +398,8 @@ async function createProfile(
   const password = assertPassword(payload.password);
   const padron = await lookupPadron(serviceClient, cedula);
   const profilePayload = await buildProfilePayload(serviceClient, padron, payload);
+  assertCanAssignRole(callerProfile, profilePayload.role);
+  assertCanUseTerritory(callerProfile, profilePayload.departamento, profilePayload.ciudad);
   const email = authEmailFromCedula(cedula);
 
   const { data: existingProfile, error: existingError } = await serviceClient
@@ -298,6 +415,8 @@ async function createProfile(
   if (existingProfile) {
     throw new HttpError(409, "Ya existe un usuario con esa cedula.");
   }
+
+  await assertDistrictAdminCreationQuota(serviceClient, callerId, callerProfile);
 
   const { data: createdUser, error: createError } = await serviceClient.auth.admin.createUser({
     app_metadata: {
@@ -339,6 +458,7 @@ async function createProfile(
 async function updateProfile(
   serviceClient: ReturnType<typeof createServiceClient>,
   callerId: string,
+  callerProfile: CallerProfile,
   payload: Record<string, unknown>,
 ) {
   const profileId = getStringPayload(payload, "id");
@@ -349,7 +469,7 @@ async function updateProfile(
 
   const { data: currentProfile, error: currentError } = await serviceClient
     .from("user_profiles")
-    .select("id,auth_user_id,cedula,nombre_apellido,role,estado")
+    .select("id,auth_user_id,cedula,nombre_apellido,role,estado,departamento,ciudad")
     .eq("id", profileId)
     .maybeSingle();
 
@@ -360,6 +480,8 @@ async function updateProfile(
   if (!currentProfile) {
     throw new HttpError(404, "Usuario no encontrado.");
   }
+
+  assertCanManageProfile(callerProfile, currentProfile as ManagedProfile);
 
   if (
     currentProfile.auth_user_id === callerId &&
@@ -378,6 +500,7 @@ async function updateProfile(
   };
 
   if (role) {
+    assertCanAssignRole(callerProfile, role);
     updatePayload.role = role;
   }
 
@@ -391,6 +514,7 @@ async function updateProfile(
     }
 
     const territory = await resolveTerritory(serviceClient, departamento, ciudad);
+    assertCanUseTerritory(callerProfile, territory.departamento, territory.ciudad);
     updatePayload.departamento = territory.departamento;
     updatePayload.ciudad = territory.ciudad;
     updatePayload.depart = territory.depart;
@@ -429,6 +553,7 @@ async function updateProfile(
 
 async function resetPassword(
   serviceClient: ReturnType<typeof createServiceClient>,
+  callerProfile: CallerProfile,
   payload: Record<string, unknown>,
 ) {
   const profileId = getStringPayload(payload, "id");
@@ -440,7 +565,7 @@ async function resetPassword(
 
   const { data: profile, error: profileError } = await serviceClient
     .from("user_profiles")
-    .select("auth_user_id")
+    .select("auth_user_id,cedula,nombre_apellido,role,estado,departamento,ciudad")
     .eq("id", profileId)
     .maybeSingle();
 
@@ -451,6 +576,8 @@ async function resetPassword(
   if (!profile) {
     throw new HttpError(404, "Usuario no encontrado.");
   }
+
+  assertCanManageProfile(callerProfile, profile as ManagedProfile);
 
   const { error } = await serviceClient.auth.admin.updateUserById(profile.auth_user_id, {
     password,
@@ -474,7 +601,7 @@ Deno.serve(async (req) => {
 
   try {
     const serviceClient = createServiceClient();
-    const caller = await requireAdmin(req, serviceClient);
+    const caller = await requireUserManager(req, serviceClient);
     const body = (await req.json()) as AdminRequest;
     const payload = body.payload ?? {};
 
@@ -485,17 +612,17 @@ Deno.serve(async (req) => {
     }
 
     if (body.action === "create") {
-      const profile = await createProfile(serviceClient, caller.id, payload);
+      const profile = await createProfile(serviceClient, caller.user.id, caller.profile, payload);
       return jsonResponse({ data: profile }, 201);
     }
 
     if (body.action === "update") {
-      const profile = await updateProfile(serviceClient, caller.id, payload);
+      const profile = await updateProfile(serviceClient, caller.user.id, caller.profile, payload);
       return jsonResponse({ data: profile });
     }
 
     if (body.action === "reset-password") {
-      const result = await resetPassword(serviceClient, payload);
+      const result = await resetPassword(serviceClient, caller.profile, payload);
       return jsonResponse({ data: result });
     }
 

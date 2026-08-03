@@ -91,7 +91,7 @@ function App() {
   };
 
   const renderActiveSection = () => {
-    if (activeSection === "panel" && auth.isAdmin) {
+    if (activeSection === "panel" && auth.canAccessTerritoryManagement) {
       return <PanelPage />;
     }
 
@@ -107,7 +107,7 @@ function App() {
       return <CandidatosPage />;
     }
 
-    if (activeSection === "usuarios" && auth.isAdmin) {
+    if (activeSection === "usuarios" && auth.canAccessTerritoryManagement) {
       return <UsuariosPage />;
     }
 
