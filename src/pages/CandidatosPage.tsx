@@ -17,7 +17,7 @@ import {
   UserRound,
   Vote,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import DataGrid from "../components/ui/DataGrid";
 import SuccessModal, { type SuccessModalDetail } from "../components/ui/SuccessModal";
@@ -29,6 +29,7 @@ import {
   type CandidatoFormValues,
 } from "../lib/candidatosApi";
 import { uploadCandidatePhoto } from "../lib/candidatePhotosApi";
+import { scrollToElement } from "../lib/scrollToElement";
 import {
   PARAGUAY_DEPARTMENTS,
   findParaguayCityName,
@@ -53,6 +54,7 @@ const initialForm: CandidatoFormValues = {
 
 function CandidatosPage() {
   const profile = useAppStore((state) => state.profile);
+  const formSectionRef = useRef<HTMLElement | null>(null);
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
   const [candidateToDelete, setCandidateToDelete] = useState<Candidato | null>(null);
   const [candidateSearch, setCandidateSearch] = useState("");
@@ -269,6 +271,7 @@ function CandidatosPage() {
       tipoCodigo: candidato.tipo.codigo,
     });
     setFeedback(`Editando ${candidato.nombreCandidato}.`);
+    scrollToElement(formSectionRef.current);
   };
 
   const requestDelete = (candidato: Candidato) => {
@@ -479,7 +482,11 @@ function CandidatosPage() {
       </section>
 
       {isAdmin ? (
-        <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.9] p-4 shadow-panel backdrop-blur sm:p-6 dark:border-brand-line dark:bg-neutral-900/[0.92]">
+        <section
+          ref={formSectionRef}
+          className="voto-card scroll-mt-24 rounded-panel border border-neutral-200 bg-white/[0.9] p-4 shadow-panel backdrop-blur focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-orange sm:p-6 dark:border-brand-line dark:bg-neutral-900/[0.92]"
+          tabIndex={-1}
+        >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="font-body text-xs font-black uppercase text-brand-orange">Carga</p>

@@ -16,7 +16,7 @@ import {
   UserPlus,
   UsersRound,
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import Button from "../components/ui/Button";
 import DataGrid from "../components/ui/DataGrid";
 import SuccessModal, { type SuccessModalDetail } from "../components/ui/SuccessModal";
@@ -33,6 +33,7 @@ import {
   isDistrictAdminProfile,
   isGeneralAdminProfile,
 } from "../lib/userRoles";
+import { scrollToElement } from "../lib/scrollToElement";
 import {
   actualizarUserProfile,
   crearUserProfile,
@@ -68,6 +69,7 @@ const initialForm: UserFormState = {
 
 function UsuariosPage() {
   const currentProfile = useAppStore((state) => state.profile);
+  const formSectionRef = useRef<HTMLElement | null>(null);
   const [editingProfile, setEditingProfile] = useState<UserProfile | null>(null);
   const [feedback, setFeedback] = useState("Gestion de usuarios lista.");
   const [form, setForm] = useState<UserFormState>(initialForm);
@@ -336,6 +338,7 @@ function UsuariosPage() {
       role: isDistrictAdmin ? "referente" : profile.role,
     });
     setFeedback(`Editando ${profile.nombreApellido}.`);
+    scrollToElement(formSectionRef.current);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -469,7 +472,11 @@ function UsuariosPage() {
         </div>
       </section>
 
-      <section className="voto-card rounded-panel border border-neutral-200 bg-white/[0.9] p-4 shadow-panel backdrop-blur sm:p-6 dark:border-brand-line dark:bg-neutral-900/[0.92]">
+      <section
+        ref={formSectionRef}
+        className="voto-card scroll-mt-24 rounded-panel border border-neutral-200 bg-white/[0.9] p-4 shadow-panel backdrop-blur focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-orange sm:p-6 dark:border-brand-line dark:bg-neutral-900/[0.92]"
+        tabIndex={-1}
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="font-body text-xs font-black uppercase text-brand-orange">Perfil</p>

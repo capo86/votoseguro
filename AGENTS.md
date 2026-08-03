@@ -21,9 +21,10 @@ Estado funcional actual:
 - En **Candidatos**, el listado usa TanStack Table, filtros de busqueda/tipo/estado y exportacion PDF/Excel del listado filtrado.
 - En **Voto Seguro**, la carga puede asociar Concejal/Titular y, si existe para el distrito, Intendente.
 - En **Voto Seguro**, el listado usa TanStack Table con filtros por nombre, cedula, telefono, estado de notificacion, territorio, candidato, fechas, usuario y localidad segun rol.
-- En **Voto Seguro**, admin exporta su vista autorizada y referente exporta sus propias cargas visibles en PDF/Excel.
+- En **Voto Seguro**, admin general exporta toda su vista autorizada, admin distrital exporta la vista de su distrito y referente exporta sus propias cargas visibles en PDF/Excel.
 - En **Voto Seguro**, cada registro tiene accion para notificar por WhatsApp con `wa.me` y registrar la notificacion.
 - En **Resumen**, los graficos deben mantener contraste correcto en modo claro y oscuro.
+- En **Usuarios**, existen perfiles `admin`, `admin_distrital` y `referente`. El admin distrital gestiona solo referentes de su departamento/ciudad y puede crear hasta 10 usuarios.
 
 ## 2. Stack tecnologico
 
@@ -200,9 +201,10 @@ Columnas importantes implementadas:
 Reglas actuales:
 
 - Una cedula activa no debe duplicarse en Voto Seguro.
-- Referente ve y actualiza solo sus propias cargas autorizadas; admin ve todas.
+- Referente ve y actualiza solo sus propias cargas autorizadas; admin general ve todas; admin distrital ve la carga de su distrito.
 - La app filtra candidatos para referente y votante por departamento/ciudad normalizados sin acentos.
 - Si un referente consulta una cedula fuera de su municipio operativo, se bloquea la carga y se muestra alerta de territorio.
+- Si un admin distrital consulta o gestiona datos fuera de su municipio operativo, se bloquea por UI y por RLS/backend.
 - Si un distrito no tiene candidatos a intendente, se permite registrar solo Concejal/Titular.
 
 Migraciones recientes relevantes:
@@ -210,6 +212,8 @@ Migraciones recientes relevantes:
 - `0016_votoseguro_concejal_intendente.sql`: agrega Concejal/Titular e Intendente a Voto Seguro.
 - `0017_insert_santa_rosa_candidatos.sql`: inserta candidatos de Santa Rosa del Aguaray solicitados.
 - `0018_votoseguro_whatsapp_notification.sql`: agrega campos de notificacion WhatsApp.
+- `0019_admin_distrital_scope.sql`: agrega `admin_distrital`, politicas RLS por distrito y RPCs de Resumen filtradas por alcance.
+- `0020_admin_distrital_user_creation_limit.sql`: limita a cada admin distrital a 10 perfiles creados y agrega trigger de proteccion en `user_profiles`.
 
 Crear migraciones nuevas en `supabase/migrations/NNNN_descripcion.sql`.
 Mantener RLS habilitado y politicas restrictivas para escritura.
@@ -220,13 +224,15 @@ Mantener RLS habilitado y politicas restrictivas para escritura.
 - La UI nunca muestra correos tecnicos ni menciones internas del proveedor.
 - El login visible es `cedula + contraseña`. Internamente se transforma a `{cedula}@votoseguro.local`.
 - La tabla `user_profiles` vincula Auth con cedula, datos del padron, territorio, `role` y `estado`.
-- Roles iniciales: `admin` y `referente`.
+- Roles actuales: `admin`, `admin_distrital` y `referente`.
 - Estados iniciales: `activo` e `inactivo`.
-- `admin` administra usuarios y candidatos, y ve todas las cargas de Voto Seguro.
+- `admin` es administrador general: administra usuarios y candidatos, y ve todas las cargas de Voto Seguro.
+- `admin_distrital` administra solo referentes de su departamento/ciudad, accede a **Resumen**, **Usuarios** y **Voto Seguro** con alcance distrital, y tiene limite de 10 usuarios creados por `created_by`.
 - `referente` carga Voto Seguro y ve solo sus propias cargas.
-- La Edge Function `admin-users` crea usuarios Auth y perfiles. Debe ejecutarse con `SUPABASE_SERVICE_ROLE_KEY` solo dentro de Supabase Functions o entorno backend seguro.
+- La Edge Function `admin-users` crea usuarios Auth y perfiles. Debe ejecutarse con `SUPABASE_SERVICE_ROLE_KEY` solo dentro de Supabase Functions o entorno backend seguro. Si se agregan roles o reglas de usuarios, desplegar tambien esta Edge Function; Vercel no la actualiza.
 - El bootstrap del primer admin se hace con `scripts/bootstrap-current-admin.sql`; no hardcodear cedulas, UUIDs ni secretos en migraciones.
 - Storage bucket de fotos de candidatos: `candidate-photos`.
+- Las escrituras de fotos de candidatos quedan reservadas al admin general.
 - El frontend solo usa URL y publishable key.
 - Service role, secret key, access tokens y passwords nunca van en frontend ni Vercel como `VITE_*`.
 
@@ -243,6 +249,7 @@ VITE_PADRON_API_URL=
 En Vercel configurar solo variables necesarias para cliente con prefijo `VITE_`.
 No configurar `SUPABASE_SERVICE_ROLE_KEY` en Vercel para esta app cliente. Las credenciales elevadas pertenecen a Supabase Edge Functions.
 Tokens de Supabase CLI (`sbp_...`) solo deben usarse como variable temporal de proceso. No escribirlos en `.env`, codigo, commits ni respuestas finales.
+Si se usa `SUPABASE_ACCESS_TOKEN` para un deploy puntual, eliminarlo de `.env.local` al terminar y/o revocarlo desde Supabase.
 Si un token se pega en chat, recomendar rotarlo/revocarlo despues de usarlo.
 
 ## 9. Padron
@@ -272,3 +279,5 @@ Antes de cerrar un cambio:
 - El deploy se realiza desde `main` hacia Vercel.
 - Despues de push, verificar que produccion sirva el bundle nuevo buscando el texto/asset esperado en los chunks publicados.
 - Si la PWA muestra contenido anterior, pedir recarga fuerte o esperar actualizacion del service worker.
+- Cambios con SQL o Edge Functions requieren deploy separado en Supabase: `supabase db push` y `supabase functions deploy admin-users`.
+- Sesion del 2026-08-03: se publico el commit `6e3aadb` en `main`, Vercel quedo `Ready`, se aplicaron las migraciones `0019` y `0020` en Supabase remoto y `admin-users` quedo desplegada como version 2.
