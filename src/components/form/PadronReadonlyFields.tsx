@@ -1,10 +1,13 @@
-import { LockKeyhole, MapPinned, School, Waypoints } from "lucide-react";
+import { Hash, LockKeyhole, MapPinned, School, Vote, Waypoints } from "lucide-react";
 
 interface PadronReadonlyFieldsProps {
   departamento: string;
   distrito: string;
   local: string;
   zona: string;
+  mesa?: string;
+  orden?: string;
+  tipoVoto?: string;
 }
 
 const fields = [
@@ -30,13 +33,22 @@ const fields = [
   },
 ] as const;
 
-function PadronReadonlyFields({ departamento, distrito, local, zona }: PadronReadonlyFieldsProps) {
+function PadronReadonlyFields({
+  departamento,
+  distrito,
+  local,
+  zona,
+  mesa,
+  orden,
+  tipoVoto,
+}: PadronReadonlyFieldsProps) {
   const values = {
     departamento,
     distrito,
     local,
     zona,
   };
+  const hasVotingData = Boolean(mesa || orden || tipoVoto);
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
@@ -65,6 +77,33 @@ function PadronReadonlyFields({ departamento, distrito, local, zona }: PadronRea
           </label>
         );
       })}
+      {hasVotingData ? (
+        <div className="grid gap-3 border-t border-neutral-200 pt-3 sm:col-span-2 sm:grid-cols-3 dark:border-white/10">
+          <ReadonlyVotingField icon={Hash} label="Mesa" value={mesa || "A confirmar"} />
+          <ReadonlyVotingField icon={Hash} label="Orden" value={orden || "A confirmar"} />
+          <ReadonlyVotingField icon={Vote} label="Tipo de voto" value={tipoVoto || "A confirmar"} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ReadonlyVotingField({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Hash;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-panel border border-brand-orange/30 bg-brand-orange/5 px-3 py-2 dark:bg-brand-orange/10">
+      <div className="flex items-center gap-2 text-brand-orange">
+        <Icon aria-hidden="true" size={16} strokeWidth={2.6} />
+        <span className="font-body text-[0.68rem] font-black uppercase">{label}</span>
+      </div>
+      <p className="mt-1 truncate font-body text-sm font-black text-brand-ink dark:text-white">{value}</p>
     </div>
   );
 }

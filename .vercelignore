@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.git/
+.vercel/
+.env
+.env.*
+Padron 2026/
+migration-logs/
+candidatos2026.xlsx
+*.dbf
+*.DBF
+*.fpt
+*.FPT
+*.msi

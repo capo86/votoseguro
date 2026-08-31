@@ -230,6 +230,8 @@ const VotingShareCard = forwardRef<HTMLDivElement, VotingShareCardProps>(functio
           <MiniMetric label="Orden" value={padron.orden || "A confirmar"} />
         </div>
 
+        <MiniMetric label="Tipo de voto" value={padron.tipoVoto || "A confirmar"} />
+
         <div className="flex items-center justify-between gap-3 border-t border-neutral-200 pt-4">
           <div>
             <p className="font-body text-[0.68rem] font-black uppercase text-neutral-500">

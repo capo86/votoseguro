@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { signInIdentifierToEmail } from "../lib/authIdentity";
 import { isSupabaseConfigured, supabase } from "../lib/supabaseClient";
 import { canAccessTerritoryManagement, isDistrictAdminProfile, isGeneralAdminProfile } from "../lib/userRoles";
@@ -19,43 +19,75 @@ export function useAuth() {
   const setProfile = useAppStore((state) => state.setProfile);
   const setAuthLoading = useAppStore((state) => state.setAuthLoading);
   const setLoginError = useAppStore((state) => state.setLoginError);
+  const profileLoadRef = useRef<Promise<string | null> | null>(null);
+  const profileLoadUserIdRef = useRef<string | null>(null);
 
   const loadProfileForSession = useCallback(
-    async (nextSession: typeof session) => {
+    (nextSession: typeof session) => {
       if (!nextSession) {
+        profileLoadRef.current = null;
+        profileLoadUserIdRef.current = null;
         setSession(null);
         setProfile(null);
         setAuthLoading(false);
-        return null;
+        return Promise.resolve(null);
+      }
+
+      const currentProfile = useAppStore.getState().profile;
+
+      // Supabase emits session events again when a tab regains focus or a token
+      // refreshes. The existing profile is still valid, so preserve the UI.
+      if (currentProfile?.authUserId === nextSession.user.id) {
+        setSession(nextSession);
+        return Promise.resolve(null);
+      }
+
+      if (
+        profileLoadUserIdRef.current === nextSession.user.id &&
+        profileLoadRef.current
+      ) {
+        return profileLoadRef.current;
       }
 
       setAuthLoading(true);
       setSession(nextSession);
 
-      try {
-        const nextProfile = await getCurrentUserProfile(nextSession.user.id);
+      const profileRequest = getCurrentUserProfile(nextSession.user.id)
+        .then((nextProfile) => {
+          if (!nextProfile) {
+            throw new Error("Tu usuario no tiene perfil operativo.");
+          }
 
-        if (!nextProfile) {
-          throw new Error("Tu usuario no tiene perfil operativo.");
+          if (nextProfile.estado !== "activo") {
+            throw new Error("Tu usuario esta inactivo.");
+          }
+
+          setProfile(nextProfile);
+          setLoginError(null);
+          setAuthLoading(false);
+          return null;
+        })
+        .catch(async (error) => {
+          const message = error instanceof Error ? error.message : "No se pudo validar el usuario.";
+          setProfile(null);
+          setSession(null);
+          setLoginError(message);
+          setAuthLoading(false);
+          await supabase?.auth.signOut();
+          return message;
+        });
+
+      profileLoadUserIdRef.current = nextSession.user.id;
+      profileLoadRef.current = profileRequest;
+
+      void profileRequest.finally(() => {
+        if (profileLoadRef.current === profileRequest) {
+          profileLoadRef.current = null;
+          profileLoadUserIdRef.current = null;
         }
+      });
 
-        if (nextProfile.estado !== "activo") {
-          throw new Error("Tu usuario esta inactivo.");
-        }
-
-        setProfile(nextProfile);
-        setLoginError(null);
-        setAuthLoading(false);
-        return null;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "No se pudo validar el usuario.";
-        setProfile(null);
-        setSession(null);
-        setLoginError(message);
-        setAuthLoading(false);
-        await supabase?.auth.signOut();
-        return message;
-      }
+      return profileRequest;
     },
     [setAuthLoading, setLoginError, setProfile, setSession],
   );

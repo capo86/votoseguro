@@ -54,6 +54,7 @@ interface PadronRpcRow {
   orden: number | string | null;
   pueblo_indigena: string | null;
   sexo: string | null;
+  tipo_voto: number | string | null;
   tiene_discapacidad: string | null;
   zona: number | string | null;
   zona_descripcion: string | null;
@@ -134,6 +135,7 @@ function parsePadronRpcRow(row: PadronRpcRow): PadronResponse | null {
     nombre: row.nombre?.trim() || undefined,
     nombreApellido: row.nombre_apellido?.trim() ?? "",
     orden: row.orden ? String(row.orden) : undefined,
+    tipoVoto: formatTipoVoto(row.tipo_voto),
     padronOgcFid: row.ogc_fid ?? undefined,
     puebloIndigena: row.pueblo_indigena?.trim() || undefined,
     sexo: row.sexo?.trim() || undefined,
@@ -150,6 +152,14 @@ function parsePadronRpcRow(row: PadronRpcRow): PadronResponse | null {
     parsed.zona
     ? parsed
     : null;
+}
+
+function formatTipoVoto(tipoVoto: number | string | null) {
+  if (tipoVoto === null || tipoVoto === undefined || tipoVoto === "") {
+    return undefined;
+  }
+
+  return String(tipoVoto) === "0" ? "Mesa normal" : `Tipo ${tipoVoto}`;
 }
 
 async function buscarEnSupabase(normalizedCedula: string): Promise<PadronResponse | null> {

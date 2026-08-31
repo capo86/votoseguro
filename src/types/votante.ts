@@ -18,6 +18,7 @@ export interface PadronResponse {
   localVotacion?: string;
   mesa?: string;
   orden?: string;
+  tipoVoto?: string;
   nacionalidad?: string;
   esIndigena?: string;
   puebloIndigena?: string;

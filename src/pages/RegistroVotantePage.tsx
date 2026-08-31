@@ -640,7 +640,12 @@ function RegistroVotantePage() {
             {...register("nombreApellido")}
           />
 
-          <PadronReadonlyFields {...padronValues} />
+          <PadronReadonlyFields
+            {...padronValues}
+            mesa={padronLookup.data?.mesa}
+            orden={padronLookup.data?.orden}
+            tipoVoto={padronLookup.data?.tipoVoto}
+          />
 
           <div className="grid gap-4 md:grid-cols-2">
             <PhoneField
@@ -1468,7 +1473,7 @@ function buildWhatsappMessage(record: VotoSeguroRecord) {
   const local = record.localVotacion || record.local || "tu local de votacion";
 
   return [
-    `${record.nombreApellido} - Ya llega el gran dia!! esperamos tu apoyo.`,
+    `${record.nombreApellido} - ¡Ya llega el gran dia! Esperamos tu apoyo.`,
     `Candidatos que elegiste: ${candidateNamesForWhatsapp(record)}.`,
     `Local: ${local}.`,
     `Mesa/Orden: ${mesaOrdenWhatsappLabel(record)}.`,

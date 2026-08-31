@@ -126,7 +126,7 @@ supabase/
 - Formato recomendado del mensaje:
 
 ```txt
-NOMBRE DEL VOTANTE - Ya llega el gran dia!! esperamos tu apoyo.
+NOMBRE DEL VOTANTE - ¡Ya llega el gran dia! Esperamos tu apoyo.
 Candidatos que elegiste: Intendente: NOMBRE - Lista X | Concejal: NOMBRE - Lista Y.
 Local: LOCAL DE VOTACION.
 Mesa/Orden: Mesa: X | Orden: Y.
