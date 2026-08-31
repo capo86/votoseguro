@@ -76,6 +76,16 @@ function App() {
   const setActiveSection = useAppStore((state) => state.setActiveSection);
   const setLoginError = useAppStore((state) => state.setLoginError);
   const setSigningIn = useAppStore((state) => state.setSigningIn);
+  const [hasVisitedVotoSeguro, setHasVisitedVotoSeguro] = useState(
+    () => activeSection === "votoseguro",
+  );
+  const shouldRenderVotoSeguro = hasVisitedVotoSeguro || activeSection === "votoseguro";
+
+  useEffect(() => {
+    if (activeSection === "votoseguro") {
+      setHasVisitedVotoSeguro(true);
+    }
+  }, [activeSection]);
 
   const handleSignIn = async (identifier: string, password: string) => {
     setSigningIn(true);
@@ -90,17 +100,13 @@ function App() {
     setSigningIn(false);
   };
 
-  const renderActiveSection = () => {
+  const renderSecondarySection = () => {
     if (activeSection === "panel" && auth.canAccessTerritoryManagement) {
       return <PanelPage />;
     }
 
     if (activeSection === "consulta-padron") {
       return <ConsultaPadronPage />;
-    }
-
-    if (activeSection === "votoseguro") {
-      return <RegistroVotantePage />;
     }
 
     if (activeSection === "candidatos") {
@@ -111,7 +117,7 @@ function App() {
       return <UsuariosPage />;
     }
 
-    return <RegistroVotantePage />;
+    return null;
   };
 
   if (auth.isLoading) {
@@ -172,7 +178,14 @@ function App() {
         theme={themeController.theme}
         user={auth.user}
       >
-        <Suspense fallback={<SectionFallback />}>{renderActiveSection()}</Suspense>
+        <Suspense fallback={<SectionFallback />}>
+          {shouldRenderVotoSeguro ? (
+            <div hidden={activeSection !== "votoseguro"}>
+              <RegistroVotantePage />
+            </div>
+          ) : null}
+          {activeSection !== "votoseguro" ? renderSecondarySection() : null}
+        </Suspense>
       </AppShell>
     </>
   );
