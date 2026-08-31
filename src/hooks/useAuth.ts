@@ -33,11 +33,14 @@ export function useAuth() {
         return Promise.resolve(null);
       }
 
-      const currentProfile = useAppStore.getState().profile;
+      const { profile: currentProfile, session: currentSession } = useAppStore.getState();
 
       // Supabase emits session events again when a tab regains focus or a token
-      // refreshes. The existing profile is still valid, so preserve the UI.
-      if (currentProfile?.authUserId === nextSession.user.id) {
+      // refreshes. The existing session/profile is still valid, so preserve the UI.
+      if (
+        currentSession?.user.id === nextSession.user.id ||
+        currentProfile?.authUserId === nextSession.user.id
+      ) {
         setSession(nextSession);
         return Promise.resolve(null);
       }
