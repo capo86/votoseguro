@@ -133,7 +133,7 @@ Mesa: X.
 Orden: Y.
 Aca podes simular tu voto para ese dia:
 https://simuladoroficial.tsje.gov.py/index.html#
-Gracias por acompanarnos!
+¡Gracias por acompañarnos!
 ```
 
 ## 6. Esquema Supabase

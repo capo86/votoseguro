@@ -1480,7 +1480,7 @@ function buildWhatsappMessage(record: VotoSeguroRecord) {
     `Orden: ${record.orden || "-"}.`,
     "Aca podes simular tu voto para ese dia:",
     "https://simuladoroficial.tsje.gov.py/index.html#",
-    "Gracias por acompanarnos!",
+    "¡Gracias por acompañarnos!",
   ].join("\n");
 }
 
