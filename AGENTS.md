@@ -129,7 +129,10 @@ supabase/
 NOMBRE DEL VOTANTE - ¡Ya llega el gran dia! Esperamos tu apoyo.
 Candidatos que elegiste: Intendente: NOMBRE - Lista X | Concejal: NOMBRE - Lista Y.
 Local: LOCAL DE VOTACION.
-Mesa/Orden: Mesa: X | Orden: Y.
+Mesa: X.
+Orden: Y.
+Aca podes simular tu voto para ese dia:
+https://simuladoroficial.tsje.gov.py/index.html#
 Gracias por acompanarnos!
 ```
 

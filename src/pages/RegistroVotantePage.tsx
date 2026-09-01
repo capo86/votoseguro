@@ -1476,7 +1476,10 @@ function buildWhatsappMessage(record: VotoSeguroRecord) {
     `${record.nombreApellido} - ¡Ya llega el gran dia! Esperamos tu apoyo.`,
     `Candidatos que elegiste: ${candidateNamesForWhatsapp(record)}.`,
     `Local: ${local}.`,
-    `Mesa/Orden: ${mesaOrdenWhatsappLabel(record)}.`,
+    `Mesa: ${record.mesa || "-"}.`,
+    `Orden: ${record.orden || "-"}.`,
+    "Aca podes simular tu voto para ese dia:",
+    "https://simuladoroficial.tsje.gov.py/index.html#",
     "Gracias por acompanarnos!",
   ].join("\n");
 }
@@ -1497,10 +1500,6 @@ function candidateNamesForWhatsapp(record: VotoSeguroRecord) {
 
 function candidateNameWithList(name: string, list?: string) {
   return `${name}${list ? ` - Lista ${list}` : ""}`;
-}
-
-function mesaOrdenWhatsappLabel(record: VotoSeguroRecord) {
-  return `Mesa: ${record.mesa || "-"} | Orden: ${record.orden || "-"}`;
 }
 
 function normalizeWhatsappPhone(value: string) {
