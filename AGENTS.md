@@ -214,6 +214,7 @@ Migraciones recientes relevantes:
 - `0018_votoseguro_whatsapp_notification.sql`: agrega campos de notificacion WhatsApp.
 - `0019_admin_distrital_scope.sql`: agrega `admin_distrital`, politicas RLS por distrito y RPCs de Resumen filtradas por alcance.
 - `0020_admin_distrital_user_creation_limit.sql`: limita a cada admin distrital a 10 perfiles creados y agrega trigger de proteccion en `user_profiles`.
+- `0023_padron_lookup_source_actualizado.sql`: consulta nombre, territorio, zona, mesa, orden y tipo de voto desde la fuente DBF 2026 sin reescribir `staging_regciv`.
 
 Crear migraciones nuevas en `supabase/migrations/NNNN_descripcion.sql`.
 Mantener RLS habilitado y politicas restrictivas para escritura.
