@@ -1506,10 +1506,13 @@ function buildWhatsappUrl(record: VotoSeguroRecord) {
 
 function buildWhatsappMessage(record: VotoSeguroRecord) {
   const local = record.localVotacion || record.local || "tu local de votacion";
+  const candidateEntries = candidateEntriesForWhatsapp(record);
 
   return [
     `${record.nombreApellido} - ¡Ya llega el gran dia! Esperamos tu apoyo.`,
-    `Candidatos que elegiste: ${candidateNamesForWhatsapp(record)}.`,
+    `${candidateSelectionIntro(candidateEntries)}: ${candidateEntries
+      .map((candidate) => `${candidate.roleLabel}: ${candidate.nameWithList}`)
+      .join(" | ")}.`,
     `Local: ${local}.`,
     `Mesa: ${record.mesa || "-"}.`,
     `Orden: ${record.orden || "-"}.`,
@@ -1519,22 +1522,91 @@ function buildWhatsappMessage(record: VotoSeguroRecord) {
   ].join("\n");
 }
 
-function candidateNamesForWhatsapp(record: VotoSeguroRecord) {
-  return [
-    record.intendenteNombre
-      ? `Intendente: ${candidateNameWithList(record.intendenteNombre, record.intendenteNumeroLista)}`
-      : "",
-    `Concejal: ${candidateNameWithList(
-      record.concejalNombre ?? record.candidatoNombre,
+interface WhatsappCandidateEntry {
+  gender: "female" | "male";
+  nameWithList: string;
+  roleLabel: string;
+}
+
+function candidateEntriesForWhatsapp(record: VotoSeguroRecord): WhatsappCandidateEntry[] {
+  const entries: WhatsappCandidateEntry[] = [];
+
+  if (record.intendenteNombre) {
+    const gender = inferCandidateGender(record.intendenteCargo, record.intendenteNombre);
+
+    entries.push({
+      gender,
+      nameWithList: candidateNameWithList(record.intendenteNombre, record.intendenteNumeroLista),
+      roleLabel: gender === "female" ? "Intendenta" : "Intendente",
+    });
+  }
+
+  const concejalName = record.concejalNombre ?? record.candidatoNombre;
+  const concejalGender = inferCandidateGender(record.concejalCargo ?? record.candidatoCargo, concejalName);
+
+  entries.push({
+    gender: concejalGender,
+    nameWithList: candidateNameWithList(
+      concejalName,
       record.concejalNumeroLista ?? record.candidatoNumeroLista,
-    )}`,
-  ]
-    .filter(Boolean)
-    .join(" | ");
+    ),
+    roleLabel: concejalGender === "female" ? "Concejala" : "Concejal",
+  });
+
+  return entries;
+}
+
+function candidateSelectionIntro(entries: WhatsappCandidateEntry[]) {
+  if (entries.length > 1) {
+    return "Candidatos que elegiste";
+  }
+
+  return entries[0]?.gender === "female" ? "Candidata que elegiste" : "Candidato que elegiste";
 }
 
 function candidateNameWithList(name: string, list?: string) {
   return `${name}${list ? ` - Lista ${list}` : ""}`;
+}
+
+function inferCandidateGender(cargo?: string, name?: string): "female" | "male" {
+  const normalizedCargo = normalizeGenderText(cargo);
+
+  if (normalizedCargo.includes("INTENDENTA") || normalizedCargo.includes("CONCEJALA")) {
+    return "female";
+  }
+
+  if (normalizedCargo.includes("INTENDENTE") || normalizedCargo.includes("CONCEJAL")) {
+    return "male";
+  }
+
+  return inferGenderFromName(name);
+}
+
+function inferGenderFromName(name?: string): "female" | "male" {
+  const [firstName = ""] = normalizeGenderText(name).split(/\s+/);
+
+  if (!firstName) {
+    return "male";
+  }
+
+  if (
+    firstName.endsWith("A") &&
+    !["DIA", "ELIA", "JEREMIA", "JOSUA", "MATIA"].includes(firstName)
+  ) {
+    return "female";
+  }
+
+  return "male";
+}
+
+function normalizeGenderText(value?: string) {
+  return (
+    value
+      ?.normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toUpperCase() ?? ""
+  );
 }
 
 function normalizeWhatsappPhone(value: string) {
