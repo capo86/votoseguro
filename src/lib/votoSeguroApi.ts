@@ -21,6 +21,7 @@ export interface VotoSeguroFilters {
   dateFrom?: string;
   dateTo?: string;
   fueNotificado?: boolean;
+  limit?: number | null;
   loadedBy?: string;
   loadedByLocalidad?: string;
   nombre?: string;
@@ -143,6 +144,7 @@ interface VotoSeguroDuplicateRow {
 
 const VOTO_SEGURO_COLUMNS =
   "id,cedula,nombre_apellido,telefono,departamento,distrito_descripcion,zona_descripcion,local_descripcion,local_votacion,mesa,orden,candidato_id,candidato_nombre,candidato_numero_lista,candidato_cargo,concejal_id,concejal_nombre,concejal_numero_lista,concejal_cargo,fue_notificado,user_notifico,fecha_notificacion,fecha_renotificacion,intendente_id,intendente_nombre,intendente_numero_lista,intendente_cargo,loaded_by,loaded_by_cedula,loaded_by_ciudad,loaded_by_departamento,loaded_by_localidad,loaded_by_nombre,loaded_by_role,estado,created_at";
+const VOTO_SEGURO_PAGE_SIZE = 1000;
 
 function requireSupabase() {
   if (!supabase) {
@@ -385,67 +387,95 @@ export async function listarVotoSeguroSnapshots(filters: VotoSeguroFilters = {})
   const cedula = filters.cedula?.replace(/\D/g, "");
   const departamento = filters.departamento?.trim();
   const ciudad = filters.ciudad?.trim();
+  const limit =
+    typeof filters.limit === "number" && Number.isFinite(filters.limit)
+      ? Math.max(0, Math.floor(filters.limit))
+      : null;
   const loadedByLocalidad = filters.loadedByLocalidad?.trim();
   const nombre = filters.nombre?.trim();
   const telefono = filters.telefono?.replace(/\D/g, "");
 
-  let query = client
-    .from("votoseguro")
-    .select(VOTO_SEGURO_COLUMNS)
-    .order("created_at", { ascending: false })
-    .limit(80);
-
-  if (filters.candidatoId) {
-    query = query.or(
-      `candidato_id.eq.${filters.candidatoId},concejal_id.eq.${filters.candidatoId},intendente_id.eq.${filters.candidatoId}`,
-    );
+  if (limit === 0) {
+    return [];
   }
 
-  if (departamento) {
-    query = query.ilike("departamento", `%${departamento}%`);
+  const pageSize = limit ? Math.min(limit, VOTO_SEGURO_PAGE_SIZE) : VOTO_SEGURO_PAGE_SIZE;
+  const rows: VotoSeguroRow[] = [];
+  let from = 0;
+
+  function buildQuery(fromRow: number, toRow: number) {
+    let query = client
+      .from("votoseguro")
+      .select(VOTO_SEGURO_COLUMNS)
+      .order("created_at", { ascending: false })
+      .range(fromRow, toRow);
+
+    if (filters.candidatoId) {
+      query = query.or(
+        `candidato_id.eq.${filters.candidatoId},concejal_id.eq.${filters.candidatoId},intendente_id.eq.${filters.candidatoId}`,
+      );
+    }
+
+    if (departamento) {
+      query = query.ilike("departamento", `%${departamento}%`);
+    }
+
+    if (cedula) {
+      query = query.ilike("cedula", `%${cedula}%`);
+    }
+
+    if (ciudad) {
+      query = query.ilike("distrito_descripcion", `%${ciudad}%`);
+    }
+
+    if (nombre) {
+      query = query.ilike("nombre_apellido", `%${nombre}%`);
+    }
+
+    if (telefono) {
+      query = query.ilike("telefono", `%${telefono}%`);
+    }
+
+    if (typeof filters.fueNotificado === "boolean") {
+      query = query.eq("fue_notificado", filters.fueNotificado);
+    }
+
+    if (filters.loadedBy) {
+      query = query.eq("loaded_by", filters.loadedBy);
+    }
+
+    if (loadedByLocalidad) {
+      query = query.ilike("loaded_by_localidad", `%${loadedByLocalidad}%`);
+    }
+
+    if (filters.dateFrom) {
+      query = query.gte("created_at", `${filters.dateFrom}T00:00:00`);
+    }
+
+    if (filters.dateTo) {
+      query = query.lte("created_at", `${filters.dateTo}T23:59:59.999`);
+    }
+
+    return query;
   }
 
-  if (cedula) {
-    query = query.ilike("cedula", `%${cedula}%`);
+  while (true) {
+    const to = limit ? Math.min(from + pageSize - 1, limit - 1) : from + pageSize - 1;
+    const { data, error } = await buildQuery(from, to);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const pageRows = (data ?? []) as VotoSeguroRow[];
+    rows.push(...pageRows);
+
+    if (pageRows.length < pageSize || (limit && rows.length >= limit)) {
+      break;
+    }
+
+    from += pageSize;
   }
 
-  if (ciudad) {
-    query = query.ilike("distrito_descripcion", `%${ciudad}%`);
-  }
-
-  if (nombre) {
-    query = query.ilike("nombre_apellido", `%${nombre}%`);
-  }
-
-  if (telefono) {
-    query = query.ilike("telefono", `%${telefono}%`);
-  }
-
-  if (typeof filters.fueNotificado === "boolean") {
-    query = query.eq("fue_notificado", filters.fueNotificado);
-  }
-
-  if (filters.loadedBy) {
-    query = query.eq("loaded_by", filters.loadedBy);
-  }
-
-  if (loadedByLocalidad) {
-    query = query.ilike("loaded_by_localidad", `%${loadedByLocalidad}%`);
-  }
-
-  if (filters.dateFrom) {
-    query = query.gte("created_at", `${filters.dateFrom}T00:00:00`);
-  }
-
-  if (filters.dateTo) {
-    query = query.lte("created_at", `${filters.dateTo}T23:59:59.999`);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return ((data ?? []) as VotoSeguroRow[]).map(rowToVotoSeguroRecord);
+  return rows.map(rowToVotoSeguroRecord);
 }

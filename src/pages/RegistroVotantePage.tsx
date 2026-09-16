@@ -54,6 +54,7 @@ import {
   listarVotoSeguroSnapshots,
   registrarNotificacionWhatsapp,
   VotoSeguroDuplicateError,
+  type VotoSeguroFilters,
   type VotoSeguroRecord,
 } from "../lib/votoSeguroApi";
 import { useAppStore } from "../store/appStore";
@@ -113,6 +114,7 @@ const initialGridFilters = {
   notificacion: "TODOS",
   telefono: "",
 };
+const RECENT_VOTO_SEGURO_LIMIT = 80;
 
 interface SuccessAlertState {
   details: SuccessModalDetail[];
@@ -201,42 +203,68 @@ function RegistroVotantePage() {
         !territoriesMatch(padronLookup.data.distrito, profile?.ciudad)),
   );
 
+  const buildVotoSeguroQueryFilters = useCallback(
+    (filtersToApply: GridFilters, options: { limitRecent?: boolean } = {}): VotoSeguroFilters => {
+      const shouldLimitToRecentRecords = Boolean(
+        options.limitRecent && canViewTeamScope && !hasActiveGridFilters(filtersToApply),
+      );
+      const scopedDepartamento = isDistrictAdmin
+        ? profile?.departamento
+        : filtersToApply.departamento || undefined;
+      const scopedCiudad = isDistrictAdmin ? profile?.ciudad : filtersToApply.ciudad || undefined;
+
+      return {
+        candidatoId: filtersToApply.candidatoId || undefined,
+        cedula: filtersToApply.cedula || undefined,
+        ciudad: scopedCiudad,
+        departamento: scopedDepartamento,
+        dateFrom: filtersToApply.dateFrom || undefined,
+        dateTo: filtersToApply.dateTo || undefined,
+        fueNotificado:
+          filtersToApply.notificacion === "NOTIFICADOS"
+            ? true
+            : filtersToApply.notificacion === "PENDIENTES"
+            ? false
+            : undefined,
+        limit: shouldLimitToRecentRecords ? RECENT_VOTO_SEGURO_LIMIT : undefined,
+        loadedBy: canViewTeamScope ? filtersToApply.loadedBy || undefined : user?.id,
+        loadedByLocalidad: canViewTeamScope ? filtersToApply.localidad || undefined : undefined,
+        nombre: filtersToApply.nombre || undefined,
+        telefono: filtersToApply.telefono || undefined,
+      };
+    },
+    [canViewTeamScope, isDistrictAdmin, profile?.ciudad, profile?.departamento, user?.id],
+  );
+
   const loadVotoSeguroRecords = useCallback(
     async (filtersToApply: GridFilters) => {
       setIsLoadingRecords(true);
 
       try {
-        const scopedDepartamento = isDistrictAdmin
-          ? profile?.departamento
-          : filtersToApply.departamento || undefined;
-        const scopedCiudad = isDistrictAdmin ? profile?.ciudad : filtersToApply.ciudad || undefined;
-        const data = await listarVotoSeguroSnapshots({
-          candidatoId: filtersToApply.candidatoId || undefined,
-          cedula: filtersToApply.cedula || undefined,
-          ciudad: scopedCiudad,
-          departamento: scopedDepartamento,
-          dateFrom: filtersToApply.dateFrom || undefined,
-          dateTo: filtersToApply.dateTo || undefined,
-          fueNotificado:
-            filtersToApply.notificacion === "NOTIFICADOS"
-              ? true
-              : filtersToApply.notificacion === "PENDIENTES"
-              ? false
-              : undefined,
-          loadedBy: canViewTeamScope ? filtersToApply.loadedBy || undefined : user?.id,
-          loadedByLocalidad: canViewTeamScope ? filtersToApply.localidad || undefined : undefined,
-          nombre: filtersToApply.nombre || undefined,
-          telefono: filtersToApply.telefono || undefined,
-        });
+        const queryFilters = buildVotoSeguroQueryFilters(filtersToApply, { limitRecent: true });
+        const data = await listarVotoSeguroSnapshots(queryFilters);
+        const isRecentLimited = queryFilters.limit === RECENT_VOTO_SEGURO_LIMIT;
+
         setRecords(data);
-        setGridFeedback(data.length ? `${data.length} cargas encontradas.` : "No hay cargas con esos filtros.");
+        setGridFeedback(
+          data.length
+            ? isRecentLimited
+              ? `${data.length} cargas recientes. Usa filtros para ver y exportar resultados completos.`
+              : `${data.length} cargas encontradas.`
+            : "No hay cargas con esos filtros.",
+        );
       } catch (error) {
         setGridFeedback(error instanceof Error ? error.message : "No se pudo cargar la grilla.");
       } finally {
         setIsLoadingRecords(false);
       }
     },
-    [canViewTeamScope, isDistrictAdmin, profile?.ciudad, profile?.departamento, user?.id],
+    [buildVotoSeguroQueryFilters],
+  );
+
+  const loadVotoSeguroRecordsForExport = useCallback(
+    () => listarVotoSeguroSnapshots(buildVotoSeguroQueryFilters(gridFilters)),
+    [buildVotoSeguroQueryFilters, gridFilters],
   );
 
   const markDirty = () => {
@@ -393,19 +421,28 @@ function RegistroVotantePage() {
   const handleFilterChange =
     (field: keyof GridFilters) =>
     (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-      if (field === "departamento") {
-        setGridFilters((currentFilters) => ({
-          ...currentFilters,
-          ciudad: "",
-          departamento: event.target.value,
-        }));
+      const value = event.target.value;
+      const shouldApplyImmediately = event.target instanceof HTMLSelectElement;
+      const nextFilters =
+        field === "departamento"
+          ? {
+              ...gridFilters,
+              ciudad: "",
+              departamento: value,
+            }
+          : {
+              ...gridFilters,
+              [field]: value,
+            };
+
+      setGridFilters(nextFilters);
+
+      if (shouldApplyImmediately) {
+        void loadVotoSeguroRecords(nextFilters);
         return;
       }
 
-      setGridFilters((currentFilters) => ({
-        ...currentFilters,
-        [field]: event.target.value,
-      }));
+      setGridFeedback("Filtros pendientes. Presiona Filtrar para aplicar.");
     };
 
   const handleFilterSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -740,6 +777,7 @@ function RegistroVotantePage() {
         isLoading={isLoadingRecords}
         onClearFilters={handleClearFilters}
         onFilterChange={handleFilterChange}
+        onLoadRecordsForExport={loadVotoSeguroRecordsForExport}
         onNotifyWhatsapp={handleNotifyWhatsapp}
         onRefresh={() => void loadVotoSeguroRecords(gridFilters)}
         onSubmitFilters={handleFilterSubmit}
@@ -794,6 +832,7 @@ interface VotoSeguroGridProps {
   isLoading: boolean;
   onClearFilters: () => void;
   onFilterChange: (field: keyof GridFilters) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
+  onLoadRecordsForExport: () => Promise<VotoSeguroRecord[]>;
   onNotifyWhatsapp: (record: VotoSeguroRecord) => void;
   onRefresh: () => void;
   onSubmitFilters: (event: FormEvent<HTMLFormElement>) => void;
@@ -813,6 +852,7 @@ function VotoSeguroGrid({
   isLoading,
   onClearFilters,
   onFilterChange,
+  onLoadRecordsForExport,
   onNotifyWhatsapp,
   onRefresh,
   onSubmitFilters,
@@ -848,41 +888,36 @@ function VotoSeguroGrid({
 
     return activeFilters;
   }, [filters.cedula, filters.nombre, filters.notificacion, filters.telefono]);
-  const visibleRecordsForExport = useMemo(
-    () =>
-      records.filter(
-        (record) =>
-          matchesVoterColumnFilter(record, {
-            cedula: filters.cedula,
-            nombre: filters.nombre,
-            telefono: filters.telefono,
-          }) && matchesNotificationColumnFilter(record, filters.notificacion),
-      ),
-    [filters.cedula, filters.nombre, filters.notificacion, filters.telefono, records],
-  );
-  const canExportReports = visibleRecordsForExport.length > 0 && !isLoading && !exportingReport;
+  const canExportReports = (records.length > 0 || hasActiveGridFilters(filters)) && !isLoading && !exportingReport;
 
   const handleExportReport = async (format: "pdf" | "excel") => {
-    if (!visibleRecordsForExport.length) {
-      setReportFeedback("No hay registros para exportar.");
-      return;
-    }
-
     setExportingReport(format);
-    setReportFeedback(format === "pdf" ? "Generando PDF." : "Generando Excel.");
+    setReportFeedback("Buscando registros para exportar.");
 
     try {
+      const recordsForReport = await onLoadRecordsForExport();
+
+      if (!recordsForReport.length) {
+        setReportFeedback("No hay registros para exportar.");
+        return;
+      }
+
       const { exportVotoSeguroToExcel, exportVotoSeguroToPdf } = await import(
         "../lib/votoSeguroReportExport"
       );
+      setReportFeedback(format === "pdf" ? "Generando PDF." : "Generando Excel.");
 
       if (format === "pdf") {
-        await exportVotoSeguroToPdf(visibleRecordsForExport, { scopeLabel });
+        await exportVotoSeguroToPdf(recordsForReport, { scopeLabel });
       } else {
-        await exportVotoSeguroToExcel(visibleRecordsForExport, { scopeLabel });
+        await exportVotoSeguroToExcel(recordsForReport, { scopeLabel });
       }
 
-      setReportFeedback(format === "pdf" ? "PDF generado." : "Excel generado.");
+      setReportFeedback(
+        `${format === "pdf" ? "PDF" : "Excel"} generado con ${recordsForReport.length.toLocaleString(
+          "es-PY",
+        )} registros.`,
+      );
     } catch (error) {
       setReportFeedback(getReportErrorMessage(error, format));
     } finally {
@@ -1518,6 +1553,22 @@ function normalizeWhatsappPhone(value: string) {
   }
 
   throw new Error("El telefono no tiene formato paraguayo valido para WhatsApp.");
+}
+
+function hasActiveGridFilters(filters: GridFilters) {
+  return Boolean(
+    filters.candidatoId ||
+      filters.cedula.trim() ||
+      filters.ciudad ||
+      filters.departamento ||
+      filters.dateFrom ||
+      filters.dateTo ||
+      filters.loadedBy ||
+      filters.localidad.trim() ||
+      filters.nombre.trim() ||
+      filters.notificacion !== "TODOS" ||
+      filters.telefono.trim()
+  );
 }
 
 function normalizeFilterValue(value?: string) {
