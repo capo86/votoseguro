@@ -149,55 +149,9 @@ function ConsultaPadronPage() {
             ) : null}
 
             {padron ? (
-              <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
-                <label className="space-y-2 text-sm font-semibold text-neutral-700 dark:text-orange-50/80">
-                  <span>Flyer</span>
-                  <div className="relative">
-                    <ImageIcon
-                      aria-hidden="true"
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-orange"
-                      size={18}
-                      strokeWidth={2.6}
-                    />
-                    {districtFlyerFileName ? (
-                      <input
-                        className={selectClassName("pl-10")}
-                        disabled
-                        readOnly
-                        value={districtFlyerLabel(districtFlyerFileName)}
-                      />
-                    ) : (
-                      <select
-                        className={selectClassName("pl-10")}
-                        onChange={(event) => setSelectedFlyerFileName(event.target.value)}
-                        value={selectedFlyerFileName}
-                      >
-                        <option value="">Seleccionar flyer</option>
-                        {PADRON_FLYER_OPTIONS.map((option) => (
-                          <option key={option.fileName} value={option.fileName}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                </label>
-                <button
-                  className="inline-flex min-h-12 items-center justify-center gap-2 rounded-panel bg-brand-orange px-4 py-2 font-body text-sm font-black uppercase text-brand-ink shadow-action transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={isExporting || !selectedFlyerFileName}
-                  onClick={exportCard}
-                  type="button"
-                >
-                  {isExporting ? (
-                    <Loader2 aria-hidden="true" className="animate-spin" size={17} strokeWidth={2.7} />
-                  ) : canUseNativeShare ? (
-                    <Share2 aria-hidden="true" size={17} strokeWidth={2.7} />
-                  ) : (
-                    <Download aria-hidden="true" size={17} strokeWidth={2.7} />
-                  )}
-                  Exportar imagen
-                </button>
-              </div>
+              <p className="mt-4 font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
+                Elegi el flyer en la vista previa y exporta la placa para compartir.
+              </p>
             ) : null}
           </div>
 
@@ -206,7 +160,31 @@ function ConsultaPadronPage() {
               Vista previa
             </p>
             {padron ? (
-              <VotingShareCard flyerFileName={selectedFlyerFileName} padron={padron} ref={cardRef} />
+              <>
+                <div className="mb-3 grid gap-2">
+                  <FlyerPicker
+                    districtFlyerFileName={districtFlyerFileName}
+                    onChange={setSelectedFlyerFileName}
+                    selectedFlyerFileName={selectedFlyerFileName}
+                  />
+                  <button
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-panel bg-brand-orange px-4 py-2 font-body text-sm font-black uppercase text-brand-ink shadow-action transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={isExporting || !selectedFlyerFileName}
+                    onClick={exportCard}
+                    type="button"
+                  >
+                    {isExporting ? (
+                      <Loader2 aria-hidden="true" className="animate-spin" size={17} strokeWidth={2.7} />
+                    ) : canUseNativeShare ? (
+                      <Share2 aria-hidden="true" size={17} strokeWidth={2.7} />
+                    ) : (
+                      <Download aria-hidden="true" size={17} strokeWidth={2.7} />
+                    )}
+                    Exportar imagen
+                  </button>
+                </div>
+                <VotingShareCard flyerFileName={selectedFlyerFileName} padron={padron} ref={cardRef} />
+              </>
             ) : (
               <div className="grid min-h-[28rem] place-items-center rounded-panel border border-dashed border-neutral-300 bg-white p-6 text-center font-body text-sm font-bold text-neutral-500 dark:border-brand-line dark:bg-brand-field dark:text-orange-50/60">
                 Consulta una cedula para generar la tarjeta.
@@ -216,6 +194,53 @@ function ConsultaPadronPage() {
         </div>
       </section>
     </section>
+  );
+}
+
+interface FlyerPickerProps {
+  districtFlyerFileName: string | null;
+  onChange: (fileName: string) => void;
+  selectedFlyerFileName: string;
+}
+
+function FlyerPicker({
+  districtFlyerFileName,
+  onChange,
+  selectedFlyerFileName,
+}: FlyerPickerProps) {
+  return (
+    <label className="space-y-2 text-sm font-semibold text-neutral-700 dark:text-orange-50/80">
+      <span>Flyer</span>
+      <div className="relative">
+        <ImageIcon
+          aria-hidden="true"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-orange"
+          size={18}
+          strokeWidth={2.6}
+        />
+        {districtFlyerFileName ? (
+          <input
+            className={selectClassName("pl-10")}
+            disabled
+            readOnly
+            value={districtFlyerLabel(districtFlyerFileName)}
+          />
+        ) : (
+          <select
+            className={selectClassName("pl-10")}
+            onChange={(event) => onChange(event.target.value)}
+            value={selectedFlyerFileName}
+          >
+            <option value="">Seleccionar flyer</option>
+            {PADRON_FLYER_OPTIONS.map((option) => (
+              <option key={option.fileName} value={option.fileName}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+    </label>
   );
 }
 
@@ -312,15 +337,6 @@ const VotingShareCard = forwardRef<HTMLDivElement, VotingShareCardProps>(functio
       </div>
 
       <div className="space-y-3 px-4 py-4">
-        <div className="grid gap-2 rounded-panel border border-neutral-200 bg-neutral-50 p-3">
-          <p className="font-body text-[0.65rem] font-black uppercase text-brand-orange">
-            Cedula {padron.cedula}
-          </p>
-          <h4 className="font-display text-[1.35rem] leading-[0.98] text-brand-ink">
-            {padron.nombreApellido}
-          </h4>
-        </div>
-
         <div
           className="grid place-items-center overflow-hidden rounded-panel border border-neutral-200 bg-neutral-100"
           style={{ aspectRatio: "900 / 1286" }}
@@ -336,6 +352,15 @@ const VotingShareCard = forwardRef<HTMLDivElement, VotingShareCardProps>(functio
               Selecciona un flyer
             </div>
           )}
+        </div>
+
+        <div className="grid gap-2 rounded-panel border border-neutral-200 bg-neutral-50 p-3">
+          <p className="font-body text-[0.65rem] font-black uppercase text-brand-orange">
+            Cedula {padron.cedula}
+          </p>
+          <h4 className="font-display text-[1.35rem] leading-[0.98] text-brand-ink">
+            {padron.nombreApellido}
+          </h4>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
