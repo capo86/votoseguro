@@ -6,6 +6,7 @@ import {
   FileSpreadsheet,
   FileText,
   FilterX,
+  IdCard,
   ImageUp,
   Loader2,
   MapPin,
@@ -37,23 +38,30 @@ import {
   getParaguayCitiesByDepartment,
 } from "../data/paraguayTerritories";
 import { filterCandidatosForProfile } from "../lib/candidateTerritory";
+import { usePadronLookup } from "../hooks/usePadronLookup";
 import { useAppStore } from "../store/appStore";
 import type { Candidato, CandidatoTipoCodigo } from "../types/candidato";
 
 const initialForm: CandidatoFormValues = {
+  cedula: "",
   nombreCandidato: "",
   tipoCodigo: "PPC",
   cargo: "",
   numeroLista: "",
+  numeroOrden: "",
   localidad: "",
   departamento: "",
   ciudad: "",
   fotoUrl: "",
   observaciones: "",
+  padronSnapshot: null,
 };
+
+type CandidatoEditableField = Exclude<keyof CandidatoFormValues, "padronSnapshot">;
 
 function CandidatosPage() {
   const profile = useAppStore((state) => state.profile);
+  const padronLookup = usePadronLookup();
   const formSectionRef = useRef<HTMLElement | null>(null);
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
   const [candidateToDelete, setCandidateToDelete] = useState<Candidato | null>(null);
@@ -77,6 +85,7 @@ function CandidatosPage() {
   const isAdmin = profile?.role === "admin";
   const createdByUser = profile?.nombreApellido ?? "usuario activo";
   const cityOptions = getParaguayCitiesByDepartment(form.departamento);
+  const isLookingUpPadron = padronLookup.status === "loading";
   const filteredCandidatos = useMemo(() => {
     const search = normalizeFilterValue(candidateSearch);
 
@@ -84,10 +93,12 @@ function CandidatosPage() {
       const matchesSearch =
         !search ||
         [
+          candidato.cedula,
           candidato.nombreCandidato,
           candidato.tipo.nombre,
           candidato.cargo,
           candidato.numeroLista,
+          candidato.numeroOrden,
           candidato.departamento,
           candidato.ciudad,
           candidato.localidad,
@@ -145,20 +156,63 @@ function CandidatosPage() {
   }, [isAdmin, profile]);
 
   const handleChange =
-    (field: keyof CandidatoFormValues) =>
+    (field: CandidatoEditableField) =>
     (event: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+      const value = field === "cedula" ? normalizeCedulaInput(event.target.value) : event.target.value;
+
       setForm((currentForm) => ({
         ...currentForm,
         ...(field === "departamento" ? { ciudad: "" } : {}),
-        [field]: event.target.value,
+        ...(field === "cedula" ? { padronSnapshot: null } : {}),
+        [field]: value,
       }));
+      if (field === "cedula") {
+        padronLookup.reset();
+      }
       setFeedback("Modificando candidato.");
     };
 
   const resetForm = () => {
     setForm(initialForm);
     setEditingId(null);
+    padronLookup.reset();
     setFeedback("Formulario limpio.");
+  };
+
+  const handleCandidatePadronLookup = async () => {
+    if (!isAdmin) {
+      setFeedback("Solo administradores pueden consultar el padron para candidatos.");
+      return;
+    }
+
+    if (!form.cedula.trim()) {
+      setFeedback("Ingresa la cedula del candidato para consultar el padron.");
+      return;
+    }
+
+    setFeedback("Consultando padron.");
+    const padron = await padronLookup.lookup(form.cedula);
+
+    if (!padron) {
+      setFeedback("No se pudo completar el candidato desde el padron.");
+      return;
+    }
+
+    const departamento =
+      findParaguayDepartmentName(padron.departamento) ??
+      (normalizeFilterValue(padron.departamento) === "ASUNCION" ? "CAPITAL" : padron.departamento);
+    const ciudad = findParaguayCityName(departamento, padron.distrito) ?? padron.distrito;
+
+    setForm((currentForm) => ({
+      ...currentForm,
+      cedula: padron.cedula,
+      ciudad,
+      departamento,
+      localidad: currentForm.localidad || padron.zona,
+      nombreCandidato: padron.nombreApellido || currentForm.nombreCandidato,
+      padronSnapshot: padron,
+    }));
+    setFeedback("Datos del padron aplicados. Completa lista, orden y cargo.");
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -188,8 +242,10 @@ function CandidatosPage() {
         setSuccessAlert({
           details: [
             { label: "Candidato", value: updated.nombreCandidato },
+            { label: "Cedula", value: updated.cedula || "-" },
             { label: "Tipo", value: updated.tipo.nombre },
             { label: "Lista", value: updated.numeroLista || "-" },
+            { label: "Orden", value: updated.numeroOrden || "-" },
             { label: "Territorio", value: `${updated.departamento || "-"} / ${updated.ciudad || "-"}` },
           ],
           summary: "El candidato quedo actualizado y disponible segun las reglas de territorio.",
@@ -202,8 +258,10 @@ function CandidatosPage() {
         setSuccessAlert({
           details: [
             { label: "Candidato", value: created.nombreCandidato },
+            { label: "Cedula", value: created.cedula || "-" },
             { label: "Tipo", value: created.tipo.nombre },
             { label: "Lista", value: created.numeroLista || "-" },
+            { label: "Orden", value: created.numeroOrden || "-" },
             { label: "Territorio", value: `${created.departamento || "-"} / ${created.ciudad || "-"}` },
           ],
           summary: "El candidato quedo cargado como activo para su territorio.",
@@ -261,15 +319,19 @@ function CandidatosPage() {
     setEditingId(candidato.id);
     setForm({
       cargo: candidato.cargo ?? "",
+      cedula: candidato.cedula ?? "",
       ciudad,
       departamento,
       fotoUrl: candidato.fotoUrl ?? "",
       localidad: candidato.localidad ?? "",
       nombreCandidato: candidato.nombreCandidato,
       numeroLista: candidato.numeroLista ?? "",
+      numeroOrden: candidato.numeroOrden ?? "",
       observaciones: candidato.observaciones ?? "",
+      padronSnapshot: candidato.padronSnapshot ?? null,
       tipoCodigo: candidato.tipo.codigo,
     });
+    padronLookup.reset();
     setFeedback(`Editando ${candidato.nombreCandidato}.`);
     scrollToElement(formSectionRef.current);
   };
@@ -372,11 +434,17 @@ function CandidatosPage() {
                 {row.original.nombreCandidato}
               </p>
               <p className="mt-1 font-body text-xs font-black uppercase text-brand-orange">
-                Lista {row.original.numeroLista || "-"}
+                Cedula {row.original.cedula || "-"}
               </p>
             </div>
           </div>
         ),
+      },
+      {
+        id: "listaOrden",
+        header: "Lista/orden",
+        cell: ({ row }) =>
+          `Lista ${row.original.numeroLista || "-"} / Orden ${row.original.numeroOrden || "-"}`,
       },
       {
         accessorKey: "tipo",
@@ -505,6 +573,41 @@ function CandidatosPage() {
         </div>
 
         <form className="mt-5 grid gap-3 md:grid-cols-2" onSubmit={handleSubmit}>
+          <div className="grid gap-3 md:col-span-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+            <label className="space-y-2 text-sm font-semibold text-neutral-700 dark:text-orange-50/80">
+              <span className="inline-flex items-center gap-2">
+                <IdCard aria-hidden="true" className="text-brand-orange" size={15} strokeWidth={2.7} />
+                Cedula
+              </span>
+              <input
+                autoComplete="off"
+                className="min-h-11 w-full rounded-panel border border-neutral-300 border-l-4 border-l-brand-orange bg-white px-3 py-2 font-body text-base font-black text-brand-ink outline-none focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 dark:bg-brand-field"
+                inputMode="numeric"
+                onChange={handleChange("cedula")}
+                placeholder="1234567"
+                type="text"
+                value={form.cedula}
+              />
+            </label>
+            <button
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-panel border border-neutral-300 bg-white px-3 py-2 font-body text-sm font-black uppercase text-brand-ink transition hover:border-brand-orange hover:text-brand-orange disabled:cursor-not-allowed disabled:opacity-55 dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
+              disabled={isLookingUpPadron || isSaving || !form.cedula.trim()}
+              onClick={handleCandidatePadronLookup}
+              type="button"
+            >
+              {isLookingUpPadron ? (
+                <Loader2 aria-hidden="true" className="animate-spin" size={16} strokeWidth={2.7} />
+              ) : (
+                <Search aria-hidden="true" size={16} strokeWidth={2.7} />
+              )}
+              Buscar padron
+            </button>
+          </div>
+          {padronLookup.error ? (
+            <p className="font-body text-sm font-semibold text-red-700 md:col-span-2 dark:text-red-200">
+              {padronLookup.error}
+            </p>
+          ) : null}
           <Field
             label="Nombre del candidato"
             onChange={handleChange("nombreCandidato")}
@@ -517,6 +620,13 @@ function CandidatosPage() {
             onChange={handleChange("numeroLista")}
             placeholder="1"
             value={form.numeroLista}
+            withAccent
+          />
+          <Field
+            label="Numero de orden"
+            onChange={handleChange("numeroOrden")}
+            placeholder="0"
+            value={form.numeroOrden}
             withAccent
           />
           <Field
@@ -697,7 +807,7 @@ function CandidatosPage() {
             <input
               className="min-h-11 w-full rounded-panel border border-neutral-300 border-l-4 border-l-brand-orange bg-white px-3 py-2 font-body text-base font-black text-brand-ink outline-none focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 dark:bg-brand-field"
               onChange={(event) => setCandidateSearch(event.target.value)}
-              placeholder="Nombre, lista o territorio"
+              placeholder="Nombre, cedula, lista o territorio"
               type="search"
               value={candidateSearch}
             />
@@ -809,7 +919,7 @@ function CandidatoCard({ candidato, isAdmin, onDelete, onEdit }: CandidatoCardPr
               {candidato.nombreCandidato}
             </p>
             <p className="mt-1 font-body text-xs font-black uppercase text-brand-orange">
-              {candidato.tipo.nombre} - Lista {candidato.numeroLista || "-"}
+              {candidato.tipo.nombre} - Lista {candidato.numeroLista || "-"} - Orden {candidato.numeroOrden || "-"}
               {candidato.localidad ? ` - ${candidato.localidad}` : ""}
             </p>
             <p className="mt-1 font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
@@ -841,6 +951,7 @@ function CandidatoCard({ candidato, isAdmin, onDelete, onEdit }: CandidatoCardPr
       </div>
 
       <div className="mt-3 grid gap-2 text-sm text-neutral-700 dark:text-orange-50/80 sm:grid-cols-2">
+        <span>Cedula: {candidato.cedula || "-"}</span>
         <span className="inline-flex items-center gap-2">
           <MapPin aria-hidden="true" className="text-brand-orange" size={15} />
           Departamento: {candidato.departamento || "-"}
@@ -949,6 +1060,10 @@ function normalizeFilterValue(value?: string) {
       .trim()
       .toUpperCase() ?? ""
   );
+}
+
+function normalizeCedulaInput(value: string) {
+  return value.replace(/\D/g, "");
 }
 
 function getReportErrorMessage(error: unknown, format: "pdf" | "excel") {

@@ -12,9 +12,11 @@ const XLSX_MIME_TYPE = "application/vnd.openxmlformats-officedocument.spreadshee
 
 const REPORT_COLUMNS = [
   "Candidato",
+  "Cedula",
   "Tipo",
   "Cargo",
   "Lista",
+  "Orden",
   "Departamento",
   "Ciudad",
   "Localidad",
@@ -90,9 +92,11 @@ export async function exportCandidatesToExcel(candidatos: Candidato[]) {
 function candidateToReportRow(candidato: Candidato) {
   return [
     candidato.nombreCandidato,
+    candidato.cedula || "-",
     candidato.tipo.nombre,
     candidato.cargo || "-",
     candidato.numeroLista || "-",
+    candidato.numeroOrden || "-",
     candidato.departamento || "-",
     candidato.ciudad || "-",
     candidato.localidad || "-",
@@ -267,7 +271,7 @@ function buildWorksheetXml(candidatos: Candidato[], generatedAt: Date) {
 
   return xmlHeader(`\
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <dimension ref="A1:H${lastRow}"/>
+  <dimension ref="A1:J${lastRow}"/>
   <sheetViews>
     <sheetView workbookViewId="0">
       <pane ySplit="5" topLeftCell="A6" activePane="bottomLeft" state="frozen"/>
@@ -277,13 +281,15 @@ function buildWorksheetXml(candidatos: Candidato[], generatedAt: Date) {
   <sheetFormatPr defaultRowHeight="20"/>
   <cols>
     <col min="1" max="1" width="34" customWidth="1"/>
-    <col min="2" max="2" width="13" customWidth="1"/>
-    <col min="3" max="3" width="18" customWidth="1"/>
-    <col min="4" max="4" width="10" customWidth="1"/>
-    <col min="5" max="5" width="18" customWidth="1"/>
-    <col min="6" max="6" width="24" customWidth="1"/>
-    <col min="7" max="7" width="24" customWidth="1"/>
-    <col min="8" max="8" width="12" customWidth="1"/>
+    <col min="2" max="2" width="12" customWidth="1"/>
+    <col min="3" max="3" width="13" customWidth="1"/>
+    <col min="4" max="4" width="18" customWidth="1"/>
+    <col min="5" max="5" width="10" customWidth="1"/>
+    <col min="6" max="6" width="10" customWidth="1"/>
+    <col min="7" max="7" width="18" customWidth="1"/>
+    <col min="8" max="8" width="24" customWidth="1"/>
+    <col min="9" max="9" width="24" customWidth="1"/>
+    <col min="10" max="10" width="12" customWidth="1"/>
   </cols>
   <sheetData>
     <row r="1" ht="24" customHeight="1">${textCell("A1", REPORT_SUBTITLE)}</row>
@@ -295,7 +301,7 @@ function buildWorksheetXml(candidatos: Candidato[], generatedAt: Date) {
     ).join("")}</row>
     ${candidatos.map((candidato, index) => buildCandidateWorksheetRow(candidato, index + 6)).join("")}
   </sheetData>
-  <autoFilter ref="A5:H${lastRow}"/>
+  <autoFilter ref="A5:J${lastRow}"/>
   <pageMargins left="0.3" right="0.3" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>
   <pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="0"/>
 </worksheet>`);

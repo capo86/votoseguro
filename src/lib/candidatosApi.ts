@@ -1,28 +1,36 @@
 import { supabase } from "./supabaseClient";
 import type { Candidato, CandidatoTipo, CandidatoTipoCodigo } from "../types/candidato";
+import type { PadronResponse } from "../types/votante";
 
 export interface CandidatoFormValues {
+  cedula: string;
   nombreCandidato: string;
   tipoCodigo: CandidatoTipoCodigo;
   cargo: string;
   numeroLista: string;
+  numeroOrden: string;
   localidad: string;
   departamento: string;
   ciudad: string;
   fotoUrl: string;
   observaciones: string;
+  padronSnapshot: PadronResponse | null;
 }
 
 interface CandidatoRow {
   id: string;
+  cedula: string | null;
   nombre: string | null;
   nombre_candidato: string | null;
   tipo: CandidatoTipo | null;
   cargo: string | null;
   numero_lista: string | null;
+  numero_orden: string | null;
   localidad: string | null;
   departamento: string | null;
   ciudad: string | null;
+  padron_ogc_fid: number | null;
+  padron_snapshot: PadronResponse | null;
   foto_url: string | null;
   observaciones: string | null;
   activo: boolean | null;
@@ -32,7 +40,7 @@ interface CandidatoRow {
 }
 
 const CANDIDATO_COLUMNS =
-  "id,nombre,nombre_candidato,tipo,cargo,numero_lista,localidad,departamento,ciudad,foto_url,observaciones,activo,created_by_user,created_at,updated_at";
+  "id,cedula,nombre,nombre_candidato,tipo,cargo,numero_lista,numero_orden,localidad,departamento,ciudad,padron_ogc_fid,padron_snapshot,foto_url,observaciones,activo,created_by_user,created_at,updated_at";
 
 const CANDIDATO_TIPOS: Record<CandidatoTipoCodigo, CandidatoTipo> = {
   ALIANZA: {
@@ -60,6 +68,7 @@ function rowToCandidato(row: CandidatoRow): Candidato {
   return {
     activo: row.activo ?? true,
     cargo: row.cargo ?? undefined,
+    cedula: row.cedula ?? undefined,
     ciudad: row.ciudad ?? undefined,
     createdAt: row.created_at ?? undefined,
     createdByUser: row.created_by_user ?? undefined,
@@ -69,7 +78,10 @@ function rowToCandidato(row: CandidatoRow): Candidato {
     localidad: row.localidad ?? undefined,
     nombreCandidato,
     numeroLista: row.numero_lista ?? undefined,
+    numeroOrden: row.numero_orden ?? undefined,
     observaciones: row.observaciones ?? undefined,
+    padronOgcFid: row.padron_ogc_fid ?? undefined,
+    padronSnapshot: row.padron_snapshot ?? undefined,
     tipo,
     updatedAt: row.updated_at ?? undefined,
   };
@@ -77,9 +89,12 @@ function rowToCandidato(row: CandidatoRow): Candidato {
 
 function formToPayload(values: CandidatoFormValues, createdByUser?: string) {
   const nombreCandidato = values.nombreCandidato.trim();
+  const cedula = normalizeCedula(values.cedula);
+  const padronSnapshot = values.padronSnapshot ?? null;
 
   const payload = {
     cargo: values.cargo.trim() || null,
+    cedula: cedula || null,
     ciudad: values.ciudad.trim() || null,
     departamento: values.departamento.trim() || null,
     foto_url: values.fotoUrl.trim() || null,
@@ -87,7 +102,10 @@ function formToPayload(values: CandidatoFormValues, createdByUser?: string) {
     nombre: nombreCandidato,
     nombre_candidato: nombreCandidato,
     numero_lista: values.numeroLista.trim() || null,
+    numero_orden: values.numeroOrden.trim() || null,
     observaciones: values.observaciones.trim() || null,
+    padron_ogc_fid: padronSnapshot?.padronOgcFid ?? null,
+    padron_snapshot: padronSnapshot ?? {},
     tipo: CANDIDATO_TIPOS[values.tipoCodigo] ?? CANDIDATO_TIPOS.PPC,
   };
 
@@ -99,6 +117,10 @@ function formToPayload(values: CandidatoFormValues, createdByUser?: string) {
   }
 
   return payload;
+}
+
+function normalizeCedula(value: string) {
+  return value.replace(/\D/g, "");
 }
 
 export async function listarCandidatos() {

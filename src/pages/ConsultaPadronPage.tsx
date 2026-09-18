@@ -19,16 +19,29 @@ import TextInput from "../components/ui/TextInput";
 import {
   DISTRICT_FLYER_FILE_NAMES,
   PADRON_FLYER_OPTIONS,
+  type PadronFlyerOption,
   buildFlyerUrl,
 } from "../data/padronFlyers";
+import { filterCandidatosForVoter } from "../lib/candidateTerritory";
+import { listarCandidatos } from "../lib/candidatosApi";
 import { buscarPorCedula } from "../lib/padronApi";
+import type { Candidato } from "../types/candidato";
 import type { PadronResponse } from "../types/votante";
+
+type SelectableFlyerOption = PadronFlyerOption & {
+  source: "candidato" | "distrito";
+};
+
+const PADRON_FLYER_BY_CEDULA = new Map(
+  PADRON_FLYER_OPTIONS.map((option) => [normalizeCedula(option.cedula), option]),
+);
 
 function ConsultaPadronPage() {
   const cardRef = useRef<HTMLDivElement>(null);
   const [cedula, setCedula] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [districtFlyerFileName, setDistrictFlyerFileName] = useState<string | null>(null);
+  const [availableFlyerOptions, setAvailableFlyerOptions] = useState<SelectableFlyerOption[]>([]);
+  const [flyerFeedback, setFlyerFeedback] = useState("Consulta una cedula para filtrar flyers.");
   const [isExporting, setIsExporting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [padron, setPadron] = useState<PadronResponse | null>(null);
@@ -48,14 +61,21 @@ function ConsultaPadronPage() {
     setError(null);
 
     try {
-      const data = await buscarPorCedula(normalizedCedula);
-      const automaticFlyer = getDistrictFlyerFileName(data.distrito);
+      const [data, candidateResult] = await Promise.all([
+        buscarPorCedula(normalizedCedula),
+        listarCandidatos()
+          .then((candidatos) => ({ candidatos, ok: true }))
+          .catch(() => ({ candidatos: [] as Candidato[], ok: false })),
+      ]);
+      const flyerOptions = buildFilteredFlyerOptions(data, candidateResult.candidatos);
       setPadron(data);
-      setDistrictFlyerFileName(automaticFlyer);
-      setSelectedFlyerFileName(automaticFlyer ?? "");
+      setAvailableFlyerOptions(flyerOptions);
+      setSelectedFlyerFileName(flyerOptions[0]?.fileName ?? "");
+      setFlyerFeedback(buildFlyerFeedback(data, flyerOptions, candidateResult.ok));
     } catch (lookupError) {
       setPadron(null);
-      setDistrictFlyerFileName(null);
+      setAvailableFlyerOptions([]);
+      setFlyerFeedback("Consulta una cedula para filtrar flyers.");
       setSelectedFlyerFileName("");
       setError(lookupError instanceof Error ? lookupError.message : "No se pudo consultar el padron.");
     } finally {
@@ -150,7 +170,7 @@ function ConsultaPadronPage() {
 
             {padron ? (
               <p className="mt-4 font-body text-sm font-semibold text-neutral-600 dark:text-orange-50/70">
-                Elegi el flyer en la vista previa y exporta la placa para compartir.
+                Elegi el flyer filtrado en la vista previa y exporta la placa para compartir.
               </p>
             ) : null}
           </div>
@@ -163,8 +183,9 @@ function ConsultaPadronPage() {
               <>
                 <div className="mb-3 grid gap-2">
                   <FlyerPicker
-                    districtFlyerFileName={districtFlyerFileName}
+                    feedback={flyerFeedback}
                     onChange={setSelectedFlyerFileName}
+                    options={availableFlyerOptions}
                     selectedFlyerFileName={selectedFlyerFileName}
                   />
                   <button
@@ -198,16 +219,21 @@ function ConsultaPadronPage() {
 }
 
 interface FlyerPickerProps {
-  districtFlyerFileName: string | null;
+  feedback: string;
   onChange: (fileName: string) => void;
+  options: SelectableFlyerOption[];
   selectedFlyerFileName: string;
 }
 
 function FlyerPicker({
-  districtFlyerFileName,
+  feedback,
   onChange,
+  options,
   selectedFlyerFileName,
 }: FlyerPickerProps) {
+  const hasMultipleOptions = options.length > 1;
+  const onlyOption = options[0];
+
   return (
     <label className="space-y-2 text-sm font-semibold text-neutral-700 dark:text-orange-50/80">
       <span>Flyer</span>
@@ -218,28 +244,30 @@ function FlyerPicker({
           size={18}
           strokeWidth={2.6}
         />
-        {districtFlyerFileName ? (
-          <input
-            className={selectClassName("pl-10")}
-            disabled
-            readOnly
-            value={districtFlyerLabel(districtFlyerFileName)}
-          />
-        ) : (
+        {hasMultipleOptions ? (
           <select
             className={selectClassName("pl-10")}
             onChange={(event) => onChange(event.target.value)}
             value={selectedFlyerFileName}
           >
-            <option value="">Seleccionar flyer</option>
-            {PADRON_FLYER_OPTIONS.map((option) => (
+            {options.map((option) => (
               <option key={option.fileName} value={option.fileName}>
                 {option.label}
               </option>
             ))}
           </select>
+        ) : (
+          <input
+            className={selectClassName("pl-10")}
+            disabled
+            readOnly
+            value={onlyOption?.label ?? "Sin flyer disponible"}
+          />
         )}
       </div>
+      <p className="font-body text-xs font-bold text-neutral-500 dark:text-orange-50/60">
+        {feedback}
+      </p>
     </label>
   );
 }
@@ -262,8 +290,107 @@ function getDistrictFlyerFileName(district: string) {
   return null;
 }
 
+function buildFilteredFlyerOptions(
+  padron: PadronResponse,
+  candidatos: Candidato[],
+): SelectableFlyerOption[] {
+  const options: SelectableFlyerOption[] = [];
+  const districtFlyerFileName = getDistrictFlyerFileName(padron.distrito);
+
+  if (districtFlyerFileName) {
+    options.push({
+      cedula: "",
+      fileName: districtFlyerFileName,
+      label: `Flyer distrital - ${districtFlyerLabel(districtFlyerFileName)}`,
+      source: "distrito",
+    });
+  }
+
+  const visibleCandidates = filterCandidatosForVoter(candidatos, {
+    departamento: padron.departamento,
+    distrito: padron.distrito,
+  });
+  const seenFileNames = new Set(options.map((option) => option.fileName));
+
+  [...visibleCandidates].sort(compareCandidatesForFlyers).forEach((candidato) => {
+    const flyerOption = PADRON_FLYER_BY_CEDULA.get(normalizeCedula(candidato.cedula ?? ""));
+
+    if (!flyerOption || seenFileNames.has(flyerOption.fileName)) {
+      return;
+    }
+
+    seenFileNames.add(flyerOption.fileName);
+    options.push({
+      ...flyerOption,
+      label: candidateFlyerLabel(candidato),
+      source: "candidato",
+    });
+  });
+
+  return options;
+}
+
+function buildFlyerFeedback(
+  padron: PadronResponse,
+  options: SelectableFlyerOption[],
+  candidatesLoaded: boolean,
+) {
+  if (!candidatesLoaded) {
+    return "No se pudieron cargar candidatos para filtrar flyers.";
+  }
+
+  const candidateFlyerCount = options.filter((option) => option.source === "candidato").length;
+
+  if (candidateFlyerCount > 1) {
+    return `${candidateFlyerCount} flyers de candidatos disponibles para ${padron.distrito}.`;
+  }
+
+  if (candidateFlyerCount === 1) {
+    return `1 flyer de candidato disponible para ${padron.distrito}.`;
+  }
+
+  if (options.length > 0) {
+    return `Usando flyer distrital para ${padron.distrito}.`;
+  }
+
+  return `No hay flyers cargados para candidatos de ${padron.distrito}.`;
+}
+
+function candidateFlyerLabel(candidato: Candidato) {
+  return [
+    candidato.nombreCandidato,
+    candidato.cargo || "Candidato",
+    `Lista ${candidato.numeroLista || "-"}`,
+    `Orden ${candidato.numeroOrden || "-"}`,
+  ].join(" - ");
+}
+
+function compareCandidatesForFlyers(left: Candidato, right: Candidato) {
+  return (
+    candidateCargoOrder(left) - candidateCargoOrder(right) ||
+    compareNumericText(left.numeroLista, right.numeroLista) ||
+    compareNumericText(left.numeroOrden, right.numeroOrden) ||
+    left.nombreCandidato.localeCompare(right.nombreCandidato, "es")
+  );
+}
+
+function candidateCargoOrder(candidato: Candidato) {
+  return normalizeFlyerText(candidato.cargo ?? "").includes("INTENDENTE") ? 0 : 1;
+}
+
+function compareNumericText(left?: string, right?: string) {
+  return (left ?? "").localeCompare(right ?? "", "es", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
 function districtFlyerLabel(fileName: string) {
   return fileName.replace(/\.jpg$/i, "");
+}
+
+function normalizeCedula(value: string) {
+  return value.replace(/\D/g, "");
 }
 
 function normalizeFlyerText(value: string) {

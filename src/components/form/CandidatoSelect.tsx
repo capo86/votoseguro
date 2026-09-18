@@ -50,7 +50,8 @@ function CandidatoSelect({
           </option>
           {candidatos.map((candidato) => (
             <option key={candidato.id} value={candidato.id}>
-              {candidato.nombreCandidato} - {candidato.tipo.nombre} - Lista {candidato.numeroLista || "-"}
+              {candidato.nombreCandidato} - {candidato.tipo.nombre} - Lista {candidato.numeroLista || "-"} - Orden{" "}
+              {candidato.numeroOrden || "-"}
               {candidato.localidad ? ` - ${candidato.localidad}` : ""}
             </option>
           ))}
