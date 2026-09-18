@@ -10,6 +10,8 @@ export const DISTRICT_FLYER_FILE_NAMES = {
   TTE_IRALA: "TTE IRALA.jpg",
 } as const;
 
+export const DEFAULT_PADRON_FLYER_FILE_NAME = "000.jpeg";
+
 export const PADRON_FLYER_OPTIONS: PadronFlyerOption[] = [
   { cedula: "928167", fileName: "928167.jpg", label: "Cedula 928167" },
   { cedula: "954806", fileName: "954806.jpg", label: "Cedula 954806" },

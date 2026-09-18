@@ -17,6 +17,7 @@ import { forwardRef, useRef, useState, type FormEvent } from "react";
 import Button from "../components/ui/Button";
 import TextInput from "../components/ui/TextInput";
 import {
+  DEFAULT_PADRON_FLYER_FILE_NAME,
   DISTRICT_FLYER_FILE_NAMES,
   PADRON_FLYER_OPTIONS,
   type PadronFlyerOption,
@@ -294,6 +295,15 @@ function buildFilteredFlyerOptions(
   padron: PadronResponse,
   candidatos: Candidato[],
 ): SelectableFlyerOption[] {
+  const visibleCandidates = filterCandidatosForVoter(candidatos, {
+    departamento: padron.departamento,
+    distrito: padron.distrito,
+  });
+
+  if (visibleCandidates.length === 0) {
+    return [buildDefaultFlyerOption(padron.distrito)];
+  }
+
   const options: SelectableFlyerOption[] = [];
   const districtFlyerFileName = getDistrictFlyerFileName(padron.distrito);
 
@@ -306,10 +316,6 @@ function buildFilteredFlyerOptions(
     });
   }
 
-  const visibleCandidates = filterCandidatosForVoter(candidatos, {
-    departamento: padron.departamento,
-    distrito: padron.distrito,
-  });
   const seenFileNames = new Set(options.map((option) => option.fileName));
 
   [...visibleCandidates].sort(compareCandidatesForFlyers).forEach((candidato) => {
@@ -327,7 +333,7 @@ function buildFilteredFlyerOptions(
     });
   });
 
-  return options;
+  return options.length > 0 ? options : [buildDefaultFlyerOption(padron.distrito)];
 }
 
 function buildFlyerFeedback(
@@ -350,10 +356,23 @@ function buildFlyerFeedback(
   }
 
   if (options.length > 0) {
-    return `Usando flyer distrital para ${padron.distrito}.`;
+    const onlyDefault = options.length === 1 && options[0]?.fileName === DEFAULT_PADRON_FLYER_FILE_NAME;
+
+    return onlyDefault
+      ? `Sin candidato cargado para ${padron.distrito}; usando imagen base.`
+      : `Usando flyer distrital para ${padron.distrito}.`;
   }
 
   return `No hay flyers cargados para candidatos de ${padron.distrito}.`;
+}
+
+function buildDefaultFlyerOption(district: string): SelectableFlyerOption {
+  return {
+    cedula: "",
+    fileName: DEFAULT_PADRON_FLYER_FILE_NAME,
+    label: `Imagen base - ${district}`,
+    source: "distrito",
+  };
 }
 
 function candidateFlyerLabel(candidato: Candidato) {
