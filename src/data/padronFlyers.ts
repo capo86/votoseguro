@@ -48,6 +48,7 @@ export const PADRON_FLYER_OPTIONS: PadronFlyerOption[] = [
   { cedula: "4549898", fileName: "4549898.jpg", label: "Cedula 4549898" },
   { cedula: "4626379", fileName: "4626379.jpg", label: "Cedula 4626379" },
   { cedula: "4651755", fileName: "4651755.jpg", label: "Cedula 4651755" },
+  { cedula: "4842938", fileName: "4842938.jpeg", label: "Cedula 4842938" },
   { cedula: "4970250", fileName: "4970250.jpg", label: "Cedula 4970250" },
   { cedula: "5015433", fileName: "5015433.jpg", label: "Cedula 5015433" },
   { cedula: "5116903", fileName: "5116903.jpg", label: "Cedula 5116903" },
