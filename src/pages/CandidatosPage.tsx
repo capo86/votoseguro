@@ -58,6 +58,7 @@ const initialForm: CandidatoFormValues = {
 };
 
 type CandidatoEditableField = Exclude<keyof CandidatoFormValues, "padronSnapshot">;
+const DEFAULT_ESTADO_FILTER: "ACTIVOS" = "ACTIVOS";
 
 function CandidatosPage() {
   const profile = useAppStore((state) => state.profile);
@@ -68,7 +69,9 @@ function CandidatosPage() {
   const [candidateSearch, setCandidateSearch] = useState("");
   const [form, setForm] = useState<CandidatoFormValues>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [estadoFilter, setEstadoFilter] = useState<"TODOS" | "ACTIVOS" | "INACTIVOS">("TODOS");
+  const [estadoFilter, setEstadoFilter] = useState<"TODOS" | "ACTIVOS" | "INACTIVOS">(
+    DEFAULT_ESTADO_FILTER,
+  );
   const [exportingReport, setExportingReport] = useState<"pdf" | "excel" | null>(null);
   const [feedback, setFeedback] = useState("Modulo de candidatos listo.");
   const [isLoading, setIsLoading] = useState(true);
@@ -114,7 +117,7 @@ function CandidatosPage() {
     });
   }, [candidatos, candidateSearch, estadoFilter, tipoFilter]);
   const hasActiveListFilters =
-    Boolean(candidateSearch.trim()) || tipoFilter !== "TODOS" || estadoFilter !== "TODOS";
+    Boolean(candidateSearch.trim()) || tipoFilter !== "TODOS" || estadoFilter !== DEFAULT_ESTADO_FILTER;
   const canExportList = filteredCandidatos.length > 0 && !isLoading && !exportingReport;
 
   useEffect(() => {
@@ -379,7 +382,7 @@ function CandidatosPage() {
   const clearListFilters = () => {
     setCandidateSearch("");
     setTipoFilter("TODOS");
-    setEstadoFilter("TODOS");
+    setEstadoFilter(DEFAULT_ESTADO_FILTER);
     setReportFeedback("Filtros limpios.");
   };
 
