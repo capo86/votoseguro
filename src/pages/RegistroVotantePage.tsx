@@ -45,7 +45,12 @@ import TextInput from "../components/ui/TextInput";
 import { PARAGUAY_DEPARTMENTS, getParaguayCitiesByDepartment } from "../data/paraguayTerritories";
 import { usePadronLookup } from "../hooks/usePadronLookup";
 import { filterCandidatesByElectionRole } from "../lib/candidateCargo";
-import { filterCandidatosForProfile, filterCandidatosForVoter, territoriesMatch } from "../lib/candidateTerritory";
+import {
+  dedupeCandidatosForSelection,
+  filterCandidatosForProfile,
+  filterCandidatosForVoter,
+  territoriesMatch,
+} from "../lib/candidateTerritory";
 import { listarCandidatos } from "../lib/candidatosApi";
 import { getUserRoleLabel, isDistrictAdminProfile, isGeneralAdminProfile } from "../lib/userRoles";
 import { listarUserProfiles } from "../lib/userProfilesApi";
@@ -282,8 +287,8 @@ function RegistroVotantePage() {
         const data = await listarCandidatos();
 
         if (isMounted) {
-          const visibleCandidates = filterCandidatosForProfile(data, profile).filter(
-            (candidato) => candidato.activo,
+          const visibleCandidates = dedupeCandidatosForSelection(
+            filterCandidatosForProfile(data, profile).filter((candidato) => candidato.activo),
           );
           setCandidatos(visibleCandidates);
           setCandidateFeedback(

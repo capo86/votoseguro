@@ -1,5 +1,6 @@
 import type { Candidato } from "../types/candidato";
 import type { UserProfile } from "../types/userProfile";
+import { getCandidateElectionRole } from "./candidateCargo";
 
 export function normalizeTerritory(value?: string) {
   return (
@@ -13,6 +14,83 @@ export function normalizeTerritory(value?: string) {
 
 export function territoriesMatch(left?: string, right?: string) {
   return normalizeTerritory(left) === normalizeTerritory(right);
+}
+
+function normalizeCandidateKey(value?: string) {
+  return normalizeTerritory(value).replace(/[^A-Z0-9]+/g, " ");
+}
+
+function normalizeCedula(value?: string) {
+  return value?.replace(/\D/g, "") ?? "";
+}
+
+function hasPadronData(candidato: Candidato) {
+  return Boolean(
+    candidato.padronOgcFid ||
+      (candidato.padronSnapshot && Object.keys(candidato.padronSnapshot).length > 0),
+  );
+}
+
+function candidateSelectionKey(candidato: Candidato) {
+  return [
+    normalizeCandidateKey(candidato.departamento),
+    normalizeCandidateKey(candidato.ciudad),
+    getCandidateElectionRole(candidato),
+    normalizeCandidateKey(candidato.numeroLista),
+    normalizeCandidateKey(candidato.nombreCandidato),
+  ].join("|");
+}
+
+function isPreferredSelectionCandidate(candidate: Candidato, current: Candidato) {
+  const candidateCedula = normalizeCedula(candidate.cedula);
+  const currentCedula = normalizeCedula(current.cedula);
+
+  if (Boolean(candidateCedula) !== Boolean(currentCedula)) {
+    return Boolean(candidateCedula);
+  }
+
+  if (hasPadronData(candidate) !== hasPadronData(current)) {
+    return hasPadronData(candidate);
+  }
+
+  if (Boolean(candidate.numeroOrden) !== Boolean(current.numeroOrden)) {
+    return Boolean(candidate.numeroOrden);
+  }
+
+  return (candidate.updatedAt ?? candidate.createdAt ?? "") > (current.updatedAt ?? current.createdAt ?? "");
+}
+
+export function dedupeCandidatosForSelection(candidatos: Candidato[]) {
+  const byPersonKey = new Map<string, Candidato>();
+
+  for (const candidato of candidatos) {
+    const key = candidateSelectionKey(candidato);
+    const current = byPersonKey.get(key);
+
+    if (!current || isPreferredSelectionCandidate(candidato, current)) {
+      byPersonKey.set(key, candidato);
+    }
+  }
+
+  const byCedula = new Map<string, Candidato>();
+  const withoutCedula: Candidato[] = [];
+
+  for (const candidato of byPersonKey.values()) {
+    const cedula = normalizeCedula(candidato.cedula);
+
+    if (!cedula) {
+      withoutCedula.push(candidato);
+      continue;
+    }
+
+    const current = byCedula.get(cedula);
+
+    if (!current || isPreferredSelectionCandidate(candidato, current)) {
+      byCedula.set(cedula, candidato);
+    }
+  }
+
+  return [...byCedula.values(), ...withoutCedula];
 }
 
 export function isCandidateVisibleForProfile(candidato: Candidato, profile: UserProfile | null) {
@@ -54,5 +132,7 @@ export function filterCandidatosForVoter(
     return [];
   }
 
-  return candidatos.filter((candidato) => isCandidateVisibleForVoter(candidato, voterTerritory));
+  return dedupeCandidatosForSelection(
+    candidatos.filter((candidato) => isCandidateVisibleForVoter(candidato, voterTerritory)),
+  );
 }
