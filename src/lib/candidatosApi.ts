@@ -40,6 +40,20 @@ interface CandidatoRow {
   updated_at: string | null;
 }
 
+interface CandidatoFlyerRpcRow {
+  id: string;
+  cedula: string | null;
+  nombre_candidato: string | null;
+  cargo: string | null;
+  numero_lista: string | null;
+  numero_orden: string | null;
+  localidad: string | null;
+  departamento: string | null;
+  ciudad: string | null;
+  tipo_codigo: CandidatoTipoCodigo | null;
+  tipo_nombre: CandidatoTipo["nombre"] | null;
+}
+
 const CANDIDATO_COLUMNS =
   "id,cedula,nombre,nombre_candidato,tipo,cargo,numero_lista,numero_orden,localidad,departamento,ciudad,padron_ogc_fid,padron_snapshot,foto_url,observaciones,activo,created_by_user,created_at,updated_at";
 
@@ -85,6 +99,24 @@ function rowToCandidato(row: CandidatoRow): Candidato {
     padronSnapshot: row.padron_snapshot ?? undefined,
     tipo,
     updatedAt: row.updated_at ?? undefined,
+  };
+}
+
+function rpcRowToFlyerCandidato(row: CandidatoFlyerRpcRow): Candidato {
+  const tipo = row.tipo_codigo === "ALIANZA" ? CANDIDATO_TIPOS.ALIANZA : CANDIDATO_TIPOS.PPC;
+
+  return {
+    activo: true,
+    cargo: row.cargo ?? undefined,
+    cedula: row.cedula ?? undefined,
+    ciudad: row.ciudad ?? undefined,
+    departamento: row.departamento ?? undefined,
+    id: row.id,
+    localidad: row.localidad ?? undefined,
+    nombreCandidato: row.nombre_candidato ?? "",
+    numeroLista: row.numero_lista ?? undefined,
+    numeroOrden: row.numero_orden ?? undefined,
+    tipo: row.tipo_nombre === tipo.nombre ? tipo : CANDIDATO_TIPOS[tipo.codigo],
   };
 }
 
@@ -137,6 +169,23 @@ export async function listarCandidatos() {
   }
 
   return ((data ?? []) as CandidatoRow[]).map(rowToCandidato);
+}
+
+export async function listarCandidatosActivosParaFlyers(territorio: {
+  departamento: string;
+  distrito: string;
+}) {
+  const client = requireSupabase();
+  const { data, error } = await client.rpc("listar_candidatos_activos_para_flyers", {
+    p_departamento: territorio.departamento,
+    p_distrito: territorio.distrito,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return ((data ?? []) as CandidatoFlyerRpcRow[]).map(rpcRowToFlyerCandidato);
 }
 
 export async function crearCandidato(values: CandidatoFormValues, createdByUser?: string) {

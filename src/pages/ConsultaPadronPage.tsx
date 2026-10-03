@@ -25,7 +25,7 @@ import {
   buildFlyerUrl,
 } from "../data/padronFlyers";
 import { filterCandidatosForVoter } from "../lib/candidateTerritory";
-import { listarCandidatos } from "../lib/candidatosApi";
+import { listarCandidatos, listarCandidatosActivosParaFlyers } from "../lib/candidatosApi";
 import { buscarPorCedula } from "../lib/padronApi";
 import type { Candidato } from "../types/candidato";
 import type { PadronResponse } from "../types/votante";
@@ -63,12 +63,14 @@ function ConsultaPadronPage() {
     setError(null);
 
     try {
-      const [data, candidateResult] = await Promise.all([
-        buscarPorCedula(normalizedCedula),
-        listarCandidatos()
-          .then((candidatos) => ({ candidatos, ok: true }))
-          .catch(() => ({ candidatos: [] as Candidato[], ok: false })),
-      ]);
+      const data = await buscarPorCedula(normalizedCedula);
+      const candidateResult = await listarCandidatosActivosParaFlyers({
+        departamento: data.departamento,
+        distrito: data.distrito,
+      })
+        .catch(() => listarCandidatos())
+        .then((candidatos) => ({ candidatos, ok: true }))
+        .catch(() => ({ candidatos: [] as Candidato[], ok: false }));
       const flyerOptions = buildFilteredFlyerOptions(data, candidateResult.candidatos);
       setPadron(data);
       setAvailableFlyerOptions(flyerOptions);
