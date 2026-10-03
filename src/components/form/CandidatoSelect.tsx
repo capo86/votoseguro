@@ -1,5 +1,6 @@
 import { Vote } from "lucide-react";
 import type { UseFormRegisterReturn } from "react-hook-form";
+import { getCandidateElectionRole } from "../../lib/candidateCargo";
 import type { Candidato } from "../../types/candidato";
 
 interface CandidatoSelectProps {
@@ -50,9 +51,7 @@ function CandidatoSelect({
           </option>
           {candidatos.map((candidato) => (
             <option key={candidato.id} value={candidato.id}>
-              {candidato.nombreCandidato} - {candidato.tipo.nombre} - Lista {candidato.numeroLista || "-"} - Orden{" "}
-              {candidato.numeroOrden || "-"}
-              {candidato.localidad ? ` - ${candidato.localidad}` : ""}
+              {formatCandidateOption(candidato)}
             </option>
           ))}
         </select>
@@ -62,6 +61,24 @@ function CandidatoSelect({
       ) : null}
     </div>
   );
+}
+
+function formatCandidateOption(candidato: Candidato) {
+  const baseLabel = [
+    candidato.nombreCandidato,
+    candidato.tipo.nombre,
+    `Lista ${candidato.numeroLista || "-"}`,
+  ];
+
+  if (getCandidateElectionRole(candidato) !== "intendente") {
+    baseLabel.push(`Orden ${candidato.numeroOrden || "-"}`);
+  }
+
+  if (candidato.localidad) {
+    baseLabel.push(candidato.localidad);
+  }
+
+  return baseLabel.join(" - ");
 }
 
 export default CandidatoSelect;
