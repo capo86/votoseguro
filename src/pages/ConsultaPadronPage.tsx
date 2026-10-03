@@ -295,7 +295,8 @@ function buildFilteredFlyerOptions(
   padron: PadronResponse,
   candidatos: Candidato[],
 ): SelectableFlyerOption[] {
-  const visibleCandidates = filterCandidatosForVoter(candidatos, {
+  const activeCandidates = candidatos.filter((candidato) => candidato.activo);
+  const visibleCandidates = filterCandidatosForVoter(activeCandidates, {
     departamento: padron.departamento,
     distrito: padron.distrito,
   });
@@ -359,11 +360,11 @@ function buildFlyerFeedback(
     const onlyDefault = options.length === 1 && options[0]?.fileName === DEFAULT_PADRON_FLYER_FILE_NAME;
 
     return onlyDefault
-      ? `Sin candidato cargado para ${padron.distrito}; usando imagen base.`
+      ? `Sin candidato activo cargado para ${padron.distrito}; usando imagen base.`
       : `Usando flyer distrital para ${padron.distrito}.`;
   }
 
-  return `No hay flyers cargados para candidatos de ${padron.distrito}.`;
+  return `No hay flyers cargados para candidatos activos de ${padron.distrito}.`;
 }
 
 function buildDefaultFlyerOption(district: string): SelectableFlyerOption {

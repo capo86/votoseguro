@@ -3,6 +3,7 @@ import type { Candidato, CandidatoTipo, CandidatoTipoCodigo } from "../types/can
 import type { PadronResponse } from "../types/votante";
 
 export interface CandidatoFormValues {
+  activo: boolean;
   cedula: string;
   nombreCandidato: string;
   tipoCodigo: CandidatoTipoCodigo;
@@ -93,6 +94,7 @@ function formToPayload(values: CandidatoFormValues, createdByUser?: string) {
   const padronSnapshot = values.padronSnapshot ?? null;
 
   const payload = {
+    activo: values.activo,
     cargo: values.cargo.trim() || null,
     cedula: cedula || null,
     ciudad: values.ciudad.trim() || null,
@@ -141,10 +143,7 @@ export async function crearCandidato(values: CandidatoFormValues, createdByUser?
   const client = requireSupabase();
   const { data, error } = await client
     .from("candidatos")
-    .insert({
-      ...formToPayload(values, createdByUser),
-      activo: true,
-    })
+    .insert(formToPayload(values, createdByUser))
     .select(CANDIDATO_COLUMNS)
     .single();
 
@@ -166,6 +165,22 @@ export async function actualizarCandidato(id: string, values: CandidatoFormValue
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  return rowToCandidato(data as CandidatoRow);
+}
+
+export async function actualizarEstadoCandidato(id: string, activo: boolean) {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from("candidatos")
+    .update({ activo })
+    .eq("id", id)
+    .select(CANDIDATO_COLUMNS)
+    .single();
+
+  if (error) {
+    throw new Error(normalizeCandidatoError(error.message));
   }
 
   return rowToCandidato(data as CandidatoRow);

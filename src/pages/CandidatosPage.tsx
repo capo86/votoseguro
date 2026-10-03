@@ -11,6 +11,8 @@ import {
   Loader2,
   MapPin,
   Plus,
+  Power,
+  PowerOff,
   Save,
   Search,
   SlidersHorizontal,
@@ -24,6 +26,7 @@ import DataGrid from "../components/ui/DataGrid";
 import SuccessModal, { type SuccessModalDetail } from "../components/ui/SuccessModal";
 import {
   actualizarCandidato,
+  actualizarEstadoCandidato,
   crearCandidato,
   eliminarCandidato,
   listarCandidatos,
@@ -43,6 +46,7 @@ import { useAppStore } from "../store/appStore";
 import type { Candidato, CandidatoTipoCodigo } from "../types/candidato";
 
 const initialForm: CandidatoFormValues = {
+  activo: true,
   cedula: "",
   nombreCandidato: "",
   tipoCodigo: "PPC",
@@ -57,7 +61,7 @@ const initialForm: CandidatoFormValues = {
   padronSnapshot: null,
 };
 
-type CandidatoEditableField = Exclude<keyof CandidatoFormValues, "padronSnapshot">;
+type CandidatoEditableField = Exclude<keyof CandidatoFormValues, "activo" | "padronSnapshot">;
 const DEFAULT_ESTADO_FILTER: "ACTIVOS" = "ACTIVOS";
 
 function CandidatosPage() {
@@ -66,6 +70,7 @@ function CandidatosPage() {
   const formSectionRef = useRef<HTMLElement | null>(null);
   const [candidatos, setCandidatos] = useState<Candidato[]>([]);
   const [candidateToDelete, setCandidateToDelete] = useState<Candidato | null>(null);
+  const [candidateToStatusChange, setCandidateToStatusChange] = useState<Candidato | null>(null);
   const [candidateSearch, setCandidateSearch] = useState("");
   const [form, setForm] = useState<CandidatoFormValues>(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -175,6 +180,20 @@ function CandidatosPage() {
       setFeedback("Modificando candidato.");
     };
 
+  const handleActiveChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    const isActive = event.target.value === "activo";
+
+    setForm((currentForm) => ({
+      ...currentForm,
+      activo: isActive,
+    }));
+    setFeedback(
+      isActive
+        ? "Candidatura marcada como activa."
+        : "Candidatura marcada como inactiva.",
+    );
+  };
+
   const resetForm = () => {
     setForm(initialForm);
     setEditingId(null);
@@ -246,12 +265,15 @@ function CandidatosPage() {
           details: [
             { label: "Candidato", value: updated.nombreCandidato },
             { label: "Cedula", value: updated.cedula || "-" },
+            { label: "Estado", value: updated.activo ? "Activo" : "Inactivo" },
             { label: "Tipo", value: updated.tipo.nombre },
             { label: "Lista", value: updated.numeroLista || "-" },
             { label: "Orden", value: updated.numeroOrden || "-" },
             { label: "Territorio", value: `${updated.departamento || "-"} / ${updated.ciudad || "-"}` },
           ],
-          summary: "El candidato quedo actualizado y disponible segun las reglas de territorio.",
+          summary: updated.activo
+            ? "El candidato quedo actualizado y disponible segun las reglas de territorio."
+            : "El candidato quedo actualizado como inactivo y no aparecera al cargar Voto Seguro.",
           title: "Candidato actualizado",
         });
       } else {
@@ -262,12 +284,15 @@ function CandidatosPage() {
           details: [
             { label: "Candidato", value: created.nombreCandidato },
             { label: "Cedula", value: created.cedula || "-" },
+            { label: "Estado", value: created.activo ? "Activo" : "Inactivo" },
             { label: "Tipo", value: created.tipo.nombre },
             { label: "Lista", value: created.numeroLista || "-" },
             { label: "Orden", value: created.numeroOrden || "-" },
             { label: "Territorio", value: `${created.departamento || "-"} / ${created.ciudad || "-"}` },
           ],
-          summary: "El candidato quedo cargado como activo para su territorio.",
+          summary: created.activo
+            ? "El candidato quedo cargado como activo para su territorio."
+            : "El candidato quedo cargado como inactivo; no aparecera al cargar Voto Seguro hasta reactivarlo.",
           title: "Candidato creado",
         });
       }
@@ -321,6 +346,7 @@ function CandidatosPage() {
 
     setEditingId(candidato.id);
     setForm({
+      activo: candidato.activo,
       cargo: candidato.cargo ?? "",
       cedula: candidato.cedula ?? "",
       ciudad,
@@ -346,6 +372,53 @@ function CandidatosPage() {
     }
 
     setCandidateToDelete(candidato);
+  };
+
+  const requestStatusChange = (candidato: Candidato) => {
+    if (!isAdmin) {
+      setFeedback("Solo administradores pueden cambiar el estado de candidatos.");
+      return;
+    }
+
+    setCandidateToStatusChange(candidato);
+  };
+
+  const handleStatusChange = async () => {
+    if (!isAdmin) {
+      setFeedback("Solo administradores pueden cambiar el estado de candidatos.");
+      return;
+    }
+
+    if (!candidateToStatusChange) {
+      return;
+    }
+
+    const nextActiveState = !candidateToStatusChange.activo;
+    setIsSaving(true);
+
+    try {
+      const updated = await actualizarEstadoCandidato(candidateToStatusChange.id, nextActiveState);
+      setCandidatos((currentCandidatos) =>
+        currentCandidatos.map((candidato) =>
+          candidato.id === updated.id ? updated : candidato,
+        ),
+      );
+
+      if (editingId === updated.id) {
+        resetForm();
+      }
+
+      setFeedback(
+        updated.activo
+          ? "Candidatura reactivada. Volvera a aparecer al cargar Voto Seguro."
+          : "Candidatura desactivada. Ya no aparecera al cargar Voto Seguro.",
+      );
+      setCandidateToStatusChange(null);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "No se pudo cambiar el estado del candidato.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -472,7 +545,7 @@ function CandidatosPage() {
       {
         accessorKey: "activo",
         header: "Estado",
-        cell: ({ row }) => (row.original.activo ? "Activo" : "Inactivo"),
+        cell: ({ row }) => <CandidateStatusBadge isActive={row.original.activo} />,
       },
       {
         accessorKey: "createdAt",
@@ -486,6 +559,19 @@ function CandidatosPage() {
               header: "Acciones",
               cell: ({ row }) => (
                 <div className="flex gap-2">
+                  <button
+                    aria-label={candidateStatusActionLabel(row.original)}
+                    className={candidateStatusActionClass(row.original.activo)}
+                    onClick={() => requestStatusChange(row.original)}
+                    title={candidateStatusActionTitle(row.original.activo)}
+                    type="button"
+                  >
+                    {row.original.activo ? (
+                      <PowerOff aria-hidden="true" size={16} strokeWidth={2.6} />
+                    ) : (
+                      <Power aria-hidden="true" size={16} strokeWidth={2.6} />
+                    )}
+                  </button>
                   <button
                     aria-label={`Editar ${row.original.nombreCandidato}`}
                     className="rounded-panel border border-neutral-300 bg-white p-2 text-brand-ink transition hover:border-brand-orange hover:text-brand-orange dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
@@ -530,6 +616,22 @@ function CandidatosPage() {
           onCancel={() => setCandidateToDelete(null)}
           onConfirm={handleDelete}
           title="Eliminar candidato"
+        />
+      ) : null}
+
+      {candidateToStatusChange ? (
+        <ConfirmModal
+          confirmLabel={candidateToStatusChange.activo ? "Desactivar" : "Reactivar"}
+          isLoading={isSaving}
+          message={
+            candidateToStatusChange.activo
+              ? `Vas a desactivar la candidatura de ${candidateToStatusChange.nombreCandidato}. No se elimina el registro: las cargas historicas quedan guardadas, pero ya no aparecera al cargar Voto Seguro.`
+              : `Vas a reactivar la candidatura de ${candidateToStatusChange.nombreCandidato}. Volvera a aparecer al cargar Voto Seguro cuando coincida con el territorio del votante.`
+          }
+          onCancel={() => setCandidateToStatusChange(null)}
+          onConfirm={handleStatusChange}
+          title={candidateToStatusChange.activo ? "Desactivar candidatura" : "Reactivar candidatura"}
+          tone="warning"
         />
       ) : null}
 
@@ -637,6 +739,11 @@ function CandidatosPage() {
             onChange={handleChange("cargo")}
             placeholder="Intendencia, concejalia..."
             value={form.cargo}
+          />
+          <StatusSelectField
+            label="Estado de candidatura"
+            onChange={handleActiveChange}
+            value={form.activo ? "activo" : "inactivo"}
           />
           <SelectField
             label="Tipo"
@@ -885,6 +992,7 @@ function CandidatosPage() {
                 isAdmin={isAdmin}
                 onDelete={requestDelete}
                 onEdit={handleEdit}
+                onToggleStatus={requestStatusChange}
               />
             )}
           />
@@ -899,9 +1007,10 @@ interface CandidatoCardProps {
   isAdmin: boolean;
   onDelete: (candidato: Candidato) => void;
   onEdit: (candidato: Candidato) => void;
+  onToggleStatus: (candidato: Candidato) => void;
 }
 
-function CandidatoCard({ candidato, isAdmin, onDelete, onEdit }: CandidatoCardProps) {
+function CandidatoCard({ candidato, isAdmin, onDelete, onEdit, onToggleStatus }: CandidatoCardProps) {
   return (
     <article className="rounded-panel border border-neutral-200 bg-white/75 p-4 dark:border-brand-line dark:bg-black/[0.16]">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -934,6 +1043,19 @@ function CandidatoCard({ candidato, isAdmin, onDelete, onEdit }: CandidatoCardPr
         {isAdmin ? (
           <div className="flex gap-2">
             <button
+              aria-label={candidateStatusActionLabel(candidato)}
+              className={candidateStatusActionClass(candidato.activo)}
+              onClick={() => onToggleStatus(candidato)}
+              title={candidateStatusActionTitle(candidato.activo)}
+              type="button"
+            >
+              {candidato.activo ? (
+                <PowerOff aria-hidden="true" size={16} strokeWidth={2.6} />
+              ) : (
+                <Power aria-hidden="true" size={16} strokeWidth={2.6} />
+              )}
+            </button>
+            <button
               aria-label={`Editar ${candidato.nombreCandidato}`}
               className="rounded-panel border border-neutral-300 bg-white p-2 text-brand-ink transition hover:border-brand-orange hover:text-brand-orange dark:border-brand-line dark:bg-white/[0.06] dark:text-white"
               onClick={() => onEdit(candidato)}
@@ -961,7 +1083,9 @@ function CandidatoCard({ candidato, isAdmin, onDelete, onEdit }: CandidatoCardPr
         </span>
         <span>Ciudad: {candidato.ciudad || "-"}</span>
         <span>Localidad: {candidato.localidad || "-"}</span>
-        <span>Activo: {candidato.activo ? "Si" : "No"}</span>
+        <span className="inline-flex items-center gap-2">
+          Estado: <CandidateStatusBadge isActive={candidato.activo} />
+        </span>
       </div>
 
       {candidato.observaciones ? (
@@ -975,6 +1099,21 @@ function CandidatoCard({ candidato, isAdmin, onDelete, onEdit }: CandidatoCardPr
         Creado por {candidato.createdByUser || "-"} - {formatDate(candidato.createdAt)}
       </p>
     </article>
+  );
+}
+
+function CandidateStatusBadge({ isActive }: { isActive: boolean }) {
+  return (
+    <span
+      className={[
+        "inline-flex w-fit items-center rounded-panel border px-2.5 py-1 font-body text-xs font-black uppercase",
+        isActive
+          ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-300/30 dark:bg-emerald-500/10 dark:text-emerald-100"
+          : "border-neutral-300 bg-neutral-100 text-neutral-700 dark:border-brand-line dark:bg-white/[0.06] dark:text-orange-50/70",
+      ].join(" ")}
+    >
+      {isActive ? "Activo" : "Inactivo"}
+    </span>
   );
 }
 
@@ -997,6 +1136,12 @@ interface SelectFieldProps {
   value: string;
 }
 
+interface StatusSelectFieldProps {
+  label: string;
+  onChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+  value: "activo" | "inactivo";
+}
+
 function Field({ className = "", label, onChange, placeholder, value, withAccent }: FieldProps) {
   return (
     <label className={`space-y-2 text-sm font-semibold text-neutral-700 dark:text-orange-50/80 ${className}`}>
@@ -1011,6 +1156,22 @@ function Field({ className = "", label, onChange, placeholder, value, withAccent
         type="text"
         value={value}
       />
+    </label>
+  );
+}
+
+function StatusSelectField({ label, onChange, value }: StatusSelectFieldProps) {
+  return (
+    <label className="space-y-2 text-sm font-semibold text-neutral-700 dark:text-orange-50/80">
+      <span>{label}</span>
+      <select
+        className="min-h-11 w-full rounded-panel border border-neutral-300 border-l-4 border-l-brand-orange bg-white px-3 py-2 font-body text-base font-black text-brand-ink outline-none focus:border-brand-orange focus:ring-4 focus:ring-brand-orange/20 dark:bg-brand-field"
+        onChange={onChange}
+        value={value}
+      >
+        <option value="activo">Activo</option>
+        <option value="inactivo">Inactivo</option>
+      </select>
     </label>
   );
 }
@@ -1067,6 +1228,23 @@ function normalizeFilterValue(value?: string) {
 
 function normalizeCedulaInput(value: string) {
   return value.replace(/\D/g, "");
+}
+
+function candidateStatusActionLabel(candidato: Candidato) {
+  return `${candidato.activo ? "Desactivar" : "Reactivar"} ${candidato.nombreCandidato}`;
+}
+
+function candidateStatusActionTitle(isActive: boolean) {
+  return isActive ? "Desactivar candidatura" : "Reactivar candidatura";
+}
+
+function candidateStatusActionClass(isActive: boolean) {
+  return [
+    "rounded-panel border bg-white p-2 transition dark:bg-white/[0.06]",
+    isActive
+      ? "border-neutral-300 text-brand-ink hover:border-amber-500 hover:text-amber-600 dark:border-brand-line dark:text-white"
+      : "border-emerald-300 text-emerald-700 hover:border-emerald-500 hover:text-emerald-600 dark:border-emerald-300/30 dark:text-emerald-100",
+  ].join(" ");
 }
 
 function getReportErrorMessage(error: unknown, format: "pdf" | "excel") {
