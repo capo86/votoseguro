@@ -550,10 +550,10 @@ const VotingShareCard = forwardRef<HTMLDivElement, VotingShareCardProps>(functio
           <ShareMetric icon={<Hash aria-hidden="true" size={15} />} label="Zona" value={padron.zona} />
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <MiniMetric label="Mesa" value={padron.mesa || "A confirmar"} />
           <MiniMetric label="Orden" value={padron.orden || "A confirmar"} />
-          <MiniMetric label="Tipo" value={padron.tipoVoto || "A confirmar"} />
+          <MiniMetric className="col-span-2" label="Tipo" value={padron.tipoVoto || "A confirmar"} />
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-neutral-200 pt-3">
@@ -593,15 +593,16 @@ function ShareMetric({ icon, label, value }: ShareMetricProps) {
 }
 
 interface MiniMetricProps {
+  className?: string;
   label: string;
   value: string;
 }
 
-function MiniMetric({ label, value }: MiniMetricProps) {
+function MiniMetric({ className = "", label, value }: MiniMetricProps) {
   return (
-    <div className="rounded-panel border border-neutral-200 bg-neutral-50 p-2.5">
+    <div className={`rounded-panel border border-neutral-200 bg-neutral-50 p-2.5 ${className}`}>
       <p className="font-body text-[0.58rem] font-black uppercase text-neutral-500">{label}</p>
-      <p className="mt-1 truncate font-display text-[1.05rem] leading-none text-brand-ink">{value}</p>
+      <p className="mt-1 break-words font-display text-[1.05rem] leading-[1.05] text-brand-ink">{value}</p>
     </div>
   );
 }
