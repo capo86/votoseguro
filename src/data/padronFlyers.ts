@@ -4,6 +4,13 @@ export interface PadronFlyerOption {
   label: string;
 }
 
+export interface PadronNamedCandidateFlyerOption {
+  candidateNameKeywords: readonly string[];
+  district: string;
+  fileName: string;
+  label: string;
+}
+
 export const DISTRICT_FLYER_FILE_NAMES = {
   ARROYITO: "ARROYITO.jpg",
   LOMA_PLATA: "LOMA PLATA.jpg",
@@ -15,8 +22,10 @@ export const DEFAULT_PADRON_FLYER_FILE_NAME = "000.jpeg";
 export const PADRON_FLYER_OPTIONS: PadronFlyerOption[] = [
   { cedula: "928167", fileName: "928167.jpg", label: "Cedula 928167" },
   { cedula: "954806", fileName: "954806.jpg", label: "Cedula 954806" },
+  { cedula: "984337", fileName: "984337.jpeg", label: "Cedula 984337" },
   { cedula: "1003231", fileName: "1003231.jpg", label: "Cedula 1003231" },
   { cedula: "1162734", fileName: "1162734.jpg", label: "Cedula 1162734" },
+  { cedula: "1256354", fileName: "1256354.jpeg", label: "Cedula 1256354" },
   { cedula: "1302629", fileName: "1302629.jpg", label: "Cedula 1302629" },
   { cedula: "1515537", fileName: "1515537.jpg", label: "Cedula 1515537" },
   { cedula: "1739908", fileName: "1739908.jpg", label: "Cedula 1739908" },
@@ -43,11 +52,13 @@ export const PADRON_FLYER_OPTIONS: PadronFlyerOption[] = [
   { cedula: "4002173", fileName: "4002173.jpg", label: "Cedula 4002173" },
   { cedula: "4027700", fileName: "4027700.jpg", label: "Cedula 4027700" },
   { cedula: "4074405", fileName: "4074405.jpg", label: "Cedula 4074405" },
+  { cedula: "4236896", fileName: "4236896.jpeg", label: "Cedula 4236896" },
   { cedula: "4275036", fileName: "4275036.jpg", label: "Cedula 4275036" },
   { cedula: "4365222", fileName: "4365222.jpg", label: "Cedula 4365222" },
   { cedula: "4549898", fileName: "4549898.jpg", label: "Cedula 4549898" },
   { cedula: "4626379", fileName: "4626379.jpg", label: "Cedula 4626379" },
   { cedula: "4651755", fileName: "4651755.jpg", label: "Cedula 4651755" },
+  { cedula: "4842938", fileName: "4842938.jpeg", label: "Cedula 4842938" },
   { cedula: "1129293", fileName: "1129293.jpeg", label: "Cedula 1129293" },
   { cedula: "4970250", fileName: "4970250.jpg", label: "Cedula 4970250" },
   { cedula: "5015433", fileName: "5015433.jpg", label: "Cedula 5015433" },
@@ -62,6 +73,27 @@ export const PADRON_FLYER_OPTIONS: PadronFlyerOption[] = [
   { cedula: "6009857", fileName: "6009857.jpg", label: "Cedula 6009857" },
   { cedula: "6159903", fileName: "6159903.jpg", label: "Cedula 6159903" },
   { cedula: "6190042", fileName: "6190042.jpg", label: "Cedula 6190042" },
+];
+
+export const PADRON_NAMED_CANDIDATE_FLYER_OPTIONS: PadronNamedCandidateFlyerOption[] = [
+  {
+    candidateNameKeywords: ["CRISTINA", "AQUINO"],
+    district: "GRAL ARTIGAS",
+    fileName: "ARTIGAS CRISTINA.jpg",
+    label: "Cristina Aquino",
+  },
+  {
+    candidateNameKeywords: ["DERLIS", "MARTINEZ"],
+    district: "GRAL ARTIGAS",
+    fileName: "ARTIGAS DERLIS.jpg",
+    label: "Derlis Martinez",
+  },
+  {
+    candidateNameKeywords: ["RUBEN", "DOMINGUEZ"],
+    district: "GRAL ARTIGAS",
+    fileName: "ARTIGAS RUBEN.jpg",
+    label: "Ruben Dominguez",
+  },
 ];
 
 export function buildFlyerUrl(fileName: string) {

@@ -20,6 +20,7 @@ import {
   DEFAULT_PADRON_FLYER_FILE_NAME,
   DISTRICT_FLYER_FILE_NAMES,
   PADRON_FLYER_OPTIONS,
+  PADRON_NAMED_CANDIDATE_FLYER_OPTIONS,
   type PadronFlyerOption,
   buildFlyerUrl,
 } from "../data/padronFlyers";
@@ -320,7 +321,7 @@ function buildFilteredFlyerOptions(
   const seenFileNames = new Set(options.map((option) => option.fileName));
 
   [...visibleCandidates].sort(compareCandidatesForFlyers).forEach((candidato) => {
-    const flyerOption = PADRON_FLYER_BY_CEDULA.get(normalizeCedula(candidato.cedula ?? ""));
+    const flyerOption = getCandidateFlyerOption(candidato, padron.distrito);
 
     if (!flyerOption || seenFileNames.has(flyerOption.fileName)) {
       return;
@@ -365,6 +366,28 @@ function buildFlyerFeedback(
   }
 
   return `No hay flyers cargados para candidatos activos de ${padron.distrito}.`;
+}
+
+function getCandidateFlyerOption(candidato: Candidato, district: string) {
+  const normalizedDistrict = normalizeFlyerMatchText(district);
+  const normalizedCandidateName = normalizeFlyerMatchText(candidato.nombreCandidato);
+  const namedFlyer = PADRON_NAMED_CANDIDATE_FLYER_OPTIONS.find(
+    (option) =>
+      normalizeFlyerMatchText(option.district) === normalizedDistrict &&
+      option.candidateNameKeywords.every((keyword) =>
+        normalizedCandidateName.includes(normalizeFlyerMatchText(keyword)),
+      ),
+  );
+
+  if (namedFlyer) {
+    return {
+      cedula: candidato.cedula ?? "",
+      fileName: namedFlyer.fileName,
+      label: namedFlyer.label,
+    };
+  }
+
+  return PADRON_FLYER_BY_CEDULA.get(normalizeCedula(candidato.cedula ?? "")) ?? null;
 }
 
 function buildDefaultFlyerOption(district: string): SelectableFlyerOption {
@@ -419,6 +442,13 @@ function normalizeFlyerText(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toUpperCase();
+}
+
+function normalizeFlyerMatchText(value: string) {
+  return normalizeFlyerText(value)
+    .replace(/[^A-Z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function selectClassName(extra = "") {
